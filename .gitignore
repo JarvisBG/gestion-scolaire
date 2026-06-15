@@ -1,0 +1,13 @@
+# Environnements virtuels Python
+backend/venv/
+backend/__pycache__/
+
+# Dépendances Node.js
+frontend/node_modules/
+frontend/dist/
+
+# Fichiers d'environnement (Sécurité)
+.env
+
+# Fichiers de configuration OS
+.DS_Store
