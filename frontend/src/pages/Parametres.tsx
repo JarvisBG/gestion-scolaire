@@ -1,0 +1,1 @@
+export default function Parametres() { return <div><h1 className="text-2xl font-bold text-gray-800">Paramètres</h1></div>; }

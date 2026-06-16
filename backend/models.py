@@ -14,16 +14,22 @@ class Utilisateur(Base):
     mot_de_passe = Column(String)  # <-- C'est ce champ précis qui posait problème
     est_actif = Column(Boolean, default=True)
 
+# Trouve ou ajoute la table Classe dans models.py
 class Classe(Base):
     __tablename__ = "classes"
 
     id = Column(Integer, primary_key=True, index=True)
-    nom = Column(String, unique=True, index=True, nullable=False) # Ex: 6ème A
-    niveau = Column(String, nullable=False)
-    annee_scolaire = Column(String, nullable=False) # Ex: 2025-2026
-
-    eleves = relationship("Eleve", back_populates="classe")
+    nom = Column(String, index=True) # Ex: 6ème A
+    niveau = Column(String) # Ex: Collège
+    salle = Column(String) # Ex: B12
     matieres = relationship("Matiere", back_populates="classe")
+    
+    # Clé étrangère pour relier au Professeur Principal (table employes)
+    professeur_principal_id = Column(Integer, ForeignKey("employes.id"), nullable=True)
+    
+    # Permet de récupérer automatiquement les infos de l'employé lié
+    professeur_principal = relationship("Employe")
+    eleves = relationship("Eleve", back_populates="classe")
 
 class Eleve(Base):
     __tablename__ = "eleves"
@@ -63,3 +69,28 @@ class Note(Base):
 
     eleve = relationship("Eleve", back_populates="notes")
     matiere = relationship("Matiere", back_populates="notes")
+
+# Ajoute ceci à la fin de models.py
+from sqlalchemy import Column, Integer, String, Date, Text, ForeignKey
+from sqlalchemy.orm import relationship
+
+class Employe(Base):
+    __tablename__ = "employes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    photo = Column(String, nullable=True) # Lien vers l'image
+    nom = Column(String, index=True)
+    prenom = Column(String)
+    sexe = Column(String)
+    date_naissance = Column(Date)
+    telephone = Column(String)
+    email = Column(String, unique=True, index=True, nullable=True)
+    adresse = Column(String)
+    fonction = Column(String) # Ex: Enseignant, Secrétaire, Vigile...
+    date_recrutement = Column(Date)
+    statut = Column(String, default="Actif")
+    observations = Column(Text, nullable=True)
+    
+    # Lien optionnel vers un compte de connexion (Utilisateur)
+    utilisateur_id = Column(Integer, ForeignKey("utilisateurs.id"), unique=True, nullable=True)
+    utilisateur = relationship("Utilisateur")

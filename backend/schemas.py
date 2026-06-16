@@ -24,3 +24,82 @@ class UtilisateurResponse(UtilisateurBase):
 
     class Config:
         from_attributes = True
+
+# Ajoute ceci à la fin de schemas.py
+from datetime import date
+from typing import Optional
+from pydantic import BaseModel
+
+class EmployeBase(BaseModel):
+    photo: Optional[str] = None
+    nom: str
+    prenom: str
+    sexe: str
+    date_naissance: date
+    telephone: str
+    email: Optional[str] = None
+    adresse: str
+    fonction: str
+    date_recrutement: date
+    statut: str = "Actif"
+    observations: Optional[str] = None
+
+class EmployeCreate(EmployeBase):
+    pass
+
+# Schéma spécifique pour la modification (tous les champs sont optionnels)
+class EmployeUpdate(BaseModel):
+    photo: Optional[str] = None
+    nom: Optional[str] = None
+    prenom: Optional[str] = None
+    sexe: Optional[str] = None
+    date_naissance: Optional[date] = None
+    telephone: Optional[str] = None
+    email: Optional[str] = None
+    adresse: Optional[str] = None
+    fonction: Optional[str] = None
+    date_recrutement: Optional[date] = None
+    statut: Optional[str] = None
+    observations: Optional[str] = None
+    utilisateur_id: Optional[int] = None
+
+class EmployeResponse(EmployeBase):
+    id: int
+    utilisateur_id: Optional[int] = None
+
+    class Config:
+        from_attributes = True # Remplace orm_mode=True pour Pydantic V2
+
+# Ajoute ceci à la fin de schemas.py
+
+# Un mini-schéma pour afficher juste le nom du prof sans charger toute sa fiche
+class EmployeMinimal(BaseModel):
+    id: int
+    nom: str
+    prenom: str
+    
+    class Config:
+        from_attributes = True
+
+class ClasseBase(BaseModel):
+    nom: str
+    niveau: str
+    salle: str
+    professeur_principal_id: Optional[int] = None
+
+class ClasseCreate(ClasseBase):
+    pass
+
+class ClasseUpdate(BaseModel):
+    nom: Optional[str] = None
+    niveau: Optional[str] = None
+    salle: Optional[str] = None
+    professeur_principal_id: Optional[int] = None
+
+class ClasseResponse(ClasseBase):
+    id: int
+    # On inclut les infos basiques du prof principal dans la réponse !
+    professeur_principal: Optional[EmployeMinimal] = None
+
+    class Config:
+        from_attributes = True
