@@ -103,3 +103,33 @@ class ClasseResponse(ClasseBase):
 
     class Config:
         from_attributes = True
+
+
+from pydantic import BaseModel
+from typing import Optional
+from datetime import date
+
+# --- SCHÉMAS POUR LES ÉLÈVES ---
+
+class EleveBase(BaseModel):
+    matricule: Optional[str] = None
+    nom: str
+    prenom: str
+    date_naissance: date
+    classe_id: int
+    statut_inscription: Optional[str] = "Inscrit" # Notre nouvelle colonne par défaut
+    observations: Optional[str] = None
+    date_naissance: Optional[date] = None
+    lieu_naissance: Optional[str] = None
+    adresse: Optional[str] = None
+    telephone_parents: Optional[str] = None
+    responsable_legal: Optional[str] = None
+
+class EleveCreate(EleveBase):
+    pass
+
+class Eleve(EleveBase):
+    id: int
+
+    class Config:
+        from_attributes = True  # Permet à Pydantic de lire les modèles SQLAlchemy

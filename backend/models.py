@@ -1,5 +1,5 @@
 # backend/models.py
-from sqlalchemy import Column, Integer, String, Boolean, Date, ForeignKey, Float
+from sqlalchemy import Column, Integer, String, Boolean, Date, ForeignKey, Float, Text
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -35,11 +35,21 @@ class Eleve(Base):
     __tablename__ = "eleves"
 
     id = Column(Integer, primary_key=True, index=True)
-    matricule = Column(String, unique=True, index=True, nullable=False)
-    nom = Column(String, nullable=False)
-    prenom = Column(String, nullable=False)
-    date_naissance = Column(Date, nullable=False)
-    sexe = Column(String, nullable=False)
+    matricule = Column(String, unique=True, index=True)
+    nom = Column(String, index=True)
+    prenom = Column(String)
+    sexe = Column(String)
+    date_naissance = Column(Date)
+    date_naissance = Column(Date, nullable=True)
+    lieu_naissance = Column(String, nullable=True)
+    adresse = Column(String, nullable=True)
+    telephone_parents = Column(String, nullable=True)
+    responsable_legal = Column(String, nullable=True)
+    
+    # ✨ LA NOUVELLE COLONNE EST ICI ✨
+    statut_inscription = Column(String, default="Inscrit")
+    observations = Column(Text, nullable=True)
+
     classe_id = Column(Integer, ForeignKey("classes.id"))
 
     classe = relationship("Classe", back_populates="eleves")

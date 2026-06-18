@@ -19,9 +19,11 @@ export default function Layout() {
   ];
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
-      {/* Colonne de Gauche (Sidebar) */}
-      <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
+    // Ajout de print:h-auto et print:overflow-visible pour que tout le tableau s'imprime en PDF
+    <div className="flex h-screen bg-gray-50 overflow-hidden print:h-auto print:bg-white print:overflow-visible">
+      
+      {/* Colonne de Gauche (Sidebar) - Cachée lors de l'impression (print:hidden) */}
+      <aside className="w-64 bg-white border-r border-gray-200 flex flex-col print:hidden">
         <div className="h-16 flex items-center px-6 border-b border-gray-200">
           <GraduationCap className="w-8 h-8 text-blue-600 mr-2" />
           <span className="text-xl font-bold text-gray-800">GestionScolaire</span>
@@ -57,9 +59,8 @@ export default function Layout() {
         </div>
       </aside>
 
-      {/* Contenu Principal (La page dynamique) */}
-      <main className="flex-1 overflow-y-auto p-8">
-        {/* Outlet est la zone où la page sélectionnée va s'afficher */}
+      {/* Contenu Principal */}
+      <main className="flex-1 overflow-y-auto p-8 print:p-0 print:overflow-visible">
         <Outlet /> 
       </main>
     </div>

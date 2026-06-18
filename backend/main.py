@@ -4,7 +4,7 @@ from routers import auth, utilisateurs # On importe le nouveau routeur
 import models
 from database import engine
 from fastapi.middleware.cors import CORSMiddleware
-from routers import auth, utilisateurs, dashboard, personnel, classes
+from routers import auth, utilisateurs, dashboard, personnel, classes, eleves
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -41,6 +41,7 @@ app.include_router(utilisateurs.router) # La nouvelle ligne est ici !
 app.include_router(dashboard.router)
 app.include_router(personnel.router)
 app.include_router(classes.router)
+app.include_router(eleves.router)
 
 @app.get("/")
 def racine():

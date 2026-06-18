@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 import models, schemas
 from database import get_db
 # On suppose que tu as une dépendance require_role dans dependencies.py ou main.py
@@ -11,13 +12,24 @@ router = APIRouter(prefix="/personnel", tags=["Gestion du Personnel"])
 def lister_personnel(db: Session = Depends(get_db)):
     return db.query(models.Employe).all()
 
-@router.post("/", response_model=schemas.EmployeResponse)
+@router.post("/")
 def ajouter_employe(employe: schemas.EmployeCreate, db: Session = Depends(get_db)):
     nouvel_employe = models.Employe(**employe.model_dump())
-    db.add(nouvel_employe)
-    db.commit()
-    db.refresh(nouvel_employe)
-    return nouvel_employe
+    
+    # On essaie de sauvegarder...
+    try:
+        db.add(nouvel_employe)
+        db.commit()
+        db.refresh(nouvel_employe)
+        return nouvel_employe
+        
+    # Si PostgreSQL crie parce que l'email existe déjà, on attrape l'erreur !
+    except IntegrityError:
+        db.rollback() # On annule l'opération pour ne pas bloquer la base
+        raise HTTPException(
+            status_code=400, 
+            detail="Cet email est déjà utilisé par un autre membre du personnel."
+        )
 
 @router.get("/{employe_id}", response_model=schemas.EmployeResponse)
 def details_employe(employe_id: int, db: Session = Depends(get_db)):

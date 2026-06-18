@@ -1,167 +1,187 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import api from "../api";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { Users, School, BookOpen, AlertCircle, Calendar, TrendingUp } from "lucide-react";
-
-interface DashboardData {
-  annee_active: string;
-  effectifs: { total: number; garcons: number; filles: number };
-  classes: number;
-  personnel: { enseignants: number; total: number };
-  alertes: { id: number; message: string; type: string }[];
-  eleves_recents: any[];
-  graphique_inscriptions: { mois: string; élèves: number }[];
-}
+import React, { useEffect, useState } from "react";
+import api from "../api/axios";
+import { Users, School, BookOpen, UserCheck, AlertCircle, LayoutDashboard } from "lucide-react";
 
 export default function Dashboard() {
-  const navigate = useNavigate();
-  const [data, setData] = useState<DashboardData | null>(null);
+  const [stats, setStats] = useState({
+    totalEleves: 0,
+    filles: 0,
+    garcons: 0,
+    totalClasses: 0,
+    totalPersonnel: 0,
+    totalEnseignants: 0, // Nouveau compteur
+    elevesParCycle: { Maternelle: 0, Primaire: 0, Collège: 0, Lycée: 0 },
+    recentEleves: [] as any[]
+  });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const response = await api.get("/dashboard/stats");
-        setData(response.data);
-      } catch (error) {
-        console.error("Erreur de récupération des données", error);
-        navigate("/"); 
-      }
-    };
-    fetchStats();
-  }, [navigate]);
+    fetchDashboardData();
+  }, []);
 
-  if (!data) {
-    return (
-      <div className="flex items-center justify-center h-full text-gray-500">
-        Chargement du tableau de bord...
-      </div>
-    );
-  }
+  const fetchDashboardData = async () => {
+    try {
+      const [elevesRes, classesRes, personnelRes] = await Promise.all([
+        api.get("/eleves/"),
+        api.get("/classes/"),
+        api.get("/personnel/").catch(() => ({ data: [] }))
+      ]);
+
+      const eleves = elevesRes.data;
+      const classes = classesRes.data;
+      const personnel = personnelRes.data;
+      
+      // 1. Calculs ultra-robustes Filles / Garçons (ignorer la casse)
+      const filles = eleves.filter((e: any) => e.sexe && e.sexe.toUpperCase().startsWith('F')).length;
+      const garcons = eleves.filter((e: any) => e.sexe && e.sexe.toUpperCase().startsWith('M')).length;
+
+      // 2. Calcul des Enseignants
+      const enseignants = personnel.filter((p: any) => p.fonction === "Enseignant").length;
+
+      // 3. Les 3 derniers inscrits
+      const recents = [...eleves].sort((a, b) => b.id - a.id).slice(0, 3);
+
+      // 4. Calcul du graphique
+      const cycles = { Maternelle: 0, Primaire: 0, Collège: 0, Lycée: 0 };
+      eleves.forEach((eleve: any) => {
+        const classeDeLeleve = classes.find((c: any) => c.id == eleve.classe_id); // == au lieu de ===
+        if (classeDeLeleve) {
+          const text = `${classeDeLeleve.nom} ${classeDeLeleve.niveau}`.toLowerCase();
+          if (text.includes("maternelle") || text.includes("pré")) cycles.Maternelle++;
+          else if (text.includes("primaire") || text.includes("cp") || text.includes("ce") || text.includes("cm")) cycles.Primaire++;
+          else if (text.includes("collège") || text.includes("college") || text.includes("ème") || text.includes("6e") || text.includes("3e") || text.includes("4e") || text.includes("5e")) cycles.Collège++;
+          else if (text.includes("lycée") || text.includes("lycee") || text.includes("seconde") || text.includes("première") || text.includes("terminale")) cycles.Lycée++;
+        }
+      });
+
+      setStats({
+        totalEleves: eleves.length,
+        filles,
+        garcons,
+        totalClasses: classes.length,
+        totalPersonnel: personnel.length,
+        totalEnseignants: enseignants,
+        elevesParCycle: cycles,
+        recentEleves: recents
+      });
+
+    } catch (error) {
+      console.error("Erreur chargement dashboard", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) return <div className="p-8 text-center text-gray-500">Chargement du tableau de bord...</div>;
+
+  const maxEffectif = Math.max(...Object.values(stats.elevesParCycle), 1); 
 
   return (
     <div className="space-y-6">
-      {/* En-tête de la page */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-4">
         <div>
-          <h2 className="text-3xl font-bold text-gray-900">Aperçu Général</h2>
-          <p className="text-sm text-gray-500 mt-1">
-            Bienvenue sur votre espace de gestion d'établissement.
-          </p>
+          <h1 className="text-3xl font-bold text-gray-800 flex items-center">
+            <LayoutDashboard className="mr-3 text-blue-600" size={32} />
+            Aperçu Général
+          </h1>
+          <p className="text-gray-500 mt-1">Bienvenue sur votre espace de gestion d'établissement.</p>
         </div>
-        <span className="flex items-center text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-4 py-2 rounded-full shadow-sm">
-          <Calendar className="w-4 h-4 mr-2 text-blue-500" />
-          Année Scolaire Active : {data.annee_active}
-        </span>
+        <div className="bg-blue-50 text-blue-700 px-4 py-2 rounded-lg font-medium border border-blue-100 shadow-sm">
+          📅 Année Scolaire Active : 2025-2026
+        </div>
       </div>
 
-      {/* Grille des indicateurs clés (KPIs) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Total Élèves */}
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
-          <div className="p-4 bg-blue-50 rounded-xl text-blue-600">
-            <Users className="w-6 h-6" />
-          </div>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center">
+          <div className="p-4 bg-blue-50 text-blue-600 rounded-lg mr-4"><Users size={28} /></div>
           <div>
-            <p className="text-sm font-medium text-gray-400">Total Élèves</p>
-            <h2 className="text-2xl font-bold text-gray-800">{data.effectifs.total}</h2>
-            <p className="text-xs font-medium text-gray-500 mt-1">
-              {data.effectifs.garcons} G • {data.effectifs.filles} F
-            </p>
+            <p className="text-sm text-gray-500 font-medium">Total Élèves</p>
+            <h3 className="text-2xl font-bold text-gray-800">{stats.totalEleves}</h3>
+            <p className="text-xs text-gray-400 mt-1">{stats.garcons} Garçons • {stats.filles} Filles</p>
           </div>
         </div>
 
-        {/* Classes */}
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
-          <div className="p-4 bg-green-50 rounded-xl text-green-600">
-            <School className="w-6 h-6" />
-          </div>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center">
+          <div className="p-4 bg-green-50 text-green-600 rounded-lg mr-4"><School size={28} /></div>
           <div>
-            <p className="text-sm font-medium text-gray-400">Classes Actives</p>
-            <h2 className="text-2xl font-bold text-gray-800">{data.classes}</h2>
-            <p className="text-xs text-green-500 font-medium mt-1">Salles attribuées</p>
+            <p className="text-sm text-gray-500 font-medium">Classes Actives</p>
+            <h3 className="text-2xl font-bold text-gray-800">{stats.totalClasses}</h3>
+            <p className="text-xs text-green-500 mt-1">Salles attribuées</p>
           </div>
         </div>
 
-        {/* Enseignants */}
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
-          <div className="p-4 bg-purple-50 rounded-xl text-purple-600">
-            <BookOpen className="w-6 h-6" />
-          </div>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center">
+          <div className="p-4 bg-purple-50 text-purple-600 rounded-lg mr-4"><BookOpen size={28} /></div>
           <div>
-            <p className="text-sm font-medium text-gray-400">Enseignants</p>
-            <h2 className="text-2xl font-bold text-gray-800">{data.personnel.enseignants}</h2>
-            <p className="text-xs text-purple-500 font-medium mt-1">Équipe pédagogique</p>
+            <p className="text-sm text-gray-500 font-medium">Enseignants</p>
+            <h3 className="text-2xl font-bold text-gray-800">{stats.totalEnseignants}</h3>
+            <p className="text-xs text-purple-500 mt-1">Équipe pédagogique</p>
           </div>
         </div>
 
-        {/* Total Personnel */}
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
-          <div className="p-4 bg-orange-50 rounded-xl text-orange-600">
-            <Users className="w-6 h-6" />
-          </div>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center">
+          <div className="p-4 bg-orange-50 text-orange-600 rounded-lg mr-4"><UserCheck size={28} /></div>
           <div>
-            <p className="text-sm font-medium text-gray-400">Total Personnel</p>
-            <h2 className="text-2xl font-bold text-gray-800">{data.personnel.total}</h2>
-            <p className="text-xs text-orange-500 font-medium mt-1">Membres enregistrés</p>
+            <p className="text-sm text-gray-500 font-medium">Total Personnel</p>
+            <h3 className="text-2xl font-bold text-gray-800">{stats.totalPersonnel}</h3>
+            <p className="text-xs text-orange-500 mt-1">Membres enregistrés</p>
           </div>
         </div>
       </div>
 
-      {/* Section Graphique & Éléments contextuels */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Graphique des effectifs */}
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm lg:col-span-2 flex flex-col">
-          <div className="flex items-center space-x-2 mb-4">
-            <TrendingUp className="w-5 h-5 text-blue-500" />
-            <h3 className="text-lg font-bold text-gray-800">Graphique des effectifs</h3>
-          </div>
-          <div className="h-72 flex-1">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.graphique_inscriptions}>
-                <XAxis dataKey="mois" stroke="#9ca3af" fontSize={12} tickLine={false} />
-                <YAxis stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip cursor={{ fill: "#f3f4f6" }} />
-                <Bar dataKey="élèves" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 lg:col-span-2">
+          <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center">
+            <School className="mr-2 text-blue-600" size={20}/> Répartition par Cycle
+          </h3>
+          <div className="flex items-end justify-around h-64 mt-4 border-b border-gray-200 pb-2 relative">
+            {Object.entries(stats.elevesParCycle).map(([cycle, count]) => {
+              const heightPercentage = (count / maxEffectif) * 100;
+              return (
+                <div key={cycle} className="flex flex-col items-center w-1/5 group h-full justify-end">
+                  <span className="mb-2 text-sm font-bold text-blue-600 transition-opacity">{count} élève(s)</span>
+                  <div 
+                    className="w-full bg-blue-500 hover:bg-blue-600 rounded-t-md transition-all duration-700 ease-out"
+                    style={{ height: `${Math.max(heightPercentage, 2)}%` }} 
+                  ></div>
+                  <span className="mt-3 text-sm font-medium text-gray-600">{cycle}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* Colonne latérale droite : Alertes & Éleves récents */}
         <div className="space-y-6">
-          {/* Alertes importantes */}
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-              <AlertCircle className="w-5 h-5 mr-2 text-red-500" /> Alertes importantes
+              <AlertCircle className="mr-2 text-red-500" size={20}/> Alertes
             </h3>
-            <div className="space-y-3">
-              {data.alertes.map((alerte) => (
-                <div
-                  key={alerte.id}
-                  className={`p-3 rounded-lg text-sm border-l-4 shadow-sm ${
-                    alerte.type === "warning"
-                      ? "bg-yellow-50 border-yellow-400 text-yellow-800"
-                      : "bg-blue-50 border-blue-400 text-blue-800"
-                  }`}
-                >
-                  {alerte.message}
-                </div>
-              ))}
+            <div className="p-3 bg-yellow-50 text-yellow-800 rounded-lg text-sm mb-3 border border-yellow-100 font-medium">
+              Validation des notes en attente
+            </div>
+            <div className="p-3 bg-blue-50 text-blue-800 rounded-lg text-sm border border-blue-100 font-medium">
+              Réunion parents-professeurs vendredi
             </div>
           </div>
 
-          {/* Élèves récemment inscrits */}
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">Élèves récemment inscrits</h3>
-            {data.eleves_recents.length > 0 ? (
-              <ul className="space-y-2">
-                {/* Dynamisé à la prochaine étape */}
-              </ul>
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h3 className="text-lg font-bold text-gray-800 mb-4">Élèves récents</h3>
+            {stats.recentEleves.length > 0 ? (
+              <div className="space-y-3">
+                {stats.recentEleves.map(eleve => (
+                  <div key={eleve.id} className="flex justify-between items-center p-3 hover:bg-gray-50 rounded-lg border border-gray-100">
+                    <div>
+                      <p className="font-bold text-gray-800 text-sm">{eleve.nom} {eleve.prenom}</p>
+                      <p className="text-xs text-gray-500">Matricule: {eleve.matricule || "-"}</p>
+                    </div>
+                    <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full">Nouveau</span>
+                  </div>
+                ))}
+              </div>
             ) : (
-              <p className="text-sm text-gray-400 italic text-center py-6 border border-dashed border-gray-200 rounded-lg bg-gray-50">
-                Aucun élève récemment inscrit.
-              </p>
+              <div className="p-4 text-center text-sm text-gray-400 bg-gray-50 border border-dashed border-gray-200 rounded-lg">
+                Aucun élève.
+              </div>
             )}
           </div>
         </div>
