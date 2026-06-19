@@ -107,11 +107,47 @@ class EleveBase(BaseModel):
     classe_id: int
     statut_inscription: Optional[str] = "Inscrit"
     observations: Optional[str] = None
+    scolarite_totale: Optional[float] = 0.0
 
 class EleveCreate(EleveBase):
     pass
 
 class Eleve(EleveBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+
+class EtablissementBase(BaseModel):
+    nom: str
+    adresse: Optional[str] = None
+    telephone: Optional[str] = None
+    email: Optional[str] = None
+    directeur: Optional[str] = None
+    logo_url: Optional[str] = None
+
+class EtablissementUpdate(EtablissementBase):
+    pass
+
+class EtablissementResponse(EtablissementBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+
+class PaiementBase(BaseModel):
+    montant: float
+    date_paiement: date
+    motif: str
+    mode_paiement: str
+    eleve_id: int
+
+class PaiementCreate(PaiementBase):
+    pass
+
+class PaiementResponse(PaiementBase):
     id: int
 
     class Config:

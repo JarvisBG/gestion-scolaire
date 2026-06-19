@@ -1,47 +1,67 @@
-# backend/routers/dashboard.py
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
 import models
 from database import get_db
 
-router = APIRouter(prefix="/dashboard", tags=["Tableau de Bord"])
+router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
-@router.get("/stats")
-def obtenir_statistiques(db: Session = Depends(get_db)):
-    # Récupération des vraies données (Utilisateurs)
+@router.get("/")
+def get_dashboard_stats(db: Session = Depends(get_db)):
+    # 1. Statistiques de base
+    total_eleves = db.query(models.Eleve).count()
+    total_classes = db.query(models.Classe).count()
     total_personnel = db.query(models.Utilisateur).count()
-    total_enseignants = db.query(models.Utilisateur).filter(models.Utilisateur.role == "Enseignant").count()
     
-    # Pour les élèves et classes (compteurs à 0 si les tables sont vides pour l'instant)
-    total_eleves = db.query(models.Eleve).count() if hasattr(models, "Eleve") else 0
-    total_classes = db.query(models.Classe).count() if hasattr(models, "Classe") else 0
+    # 2. Répartition Filles/Garçons
+    filles = db.query(models.Eleve).filter(models.Eleve.sexe == 'F').count()
+    garcons = db.query(models.Eleve).filter(models.Eleve.sexe == 'M').count()
 
-    # Nous renvoyons une structure complète. 
-    # Les données complexes (Sexe, Graphiques) sont simulées en attendant la création de leurs modules.
+    # 3. Calculs Financiers Globaux
+    total_attendu = db.query(func.sum(models.Eleve.scolarite_totale)).scalar() or 0.0
+    total_encaisse = db.query(func.sum(models.Paiement.montant)).scalar() or 0.0
+    
+    # 4. Liste Rouge (Calcul précis et dynamique)
+    # L'utilisation de joinedload force SQLAlchemy à charger l'historique financier de chaque élève !
+    eleves = db.query(models.Eleve).options(joinedload(models.Eleve.paiements)).all()
+    eleves_en_retard = []
+    
+    for eleve in eleves:
+        # Si la scolarité de l'élève est à 0 ou non définie, on l'ignore
+        if not eleve.scolarite_totale or eleve.scolarite_totale <= 0:
+            continue
+            
+        # Calcul dynamique de la somme des paiements effectués par cet élève
+        deja_paye = sum([p.montant for p in eleve.paiements])
+        
+        reste_a_payer = eleve.scolarite_totale - deja_paye
+        
+        # S'il reste un reliquat de paiement, on l'ajoute à la liste d'alerte
+        if reste_a_payer > 0:
+            eleves_en_retard.append({
+                "id": eleve.id,
+                "nom": eleve.nom,
+                "prenom": eleve.prenom,
+                "classe": eleve.classe.nom if eleve.classe else "N/A",
+                "reste_a_payer": reste_a_payer,
+                "taux_paye": round((deja_paye / eleve.scolarite_totale) * 100)
+            })
+            
+    # Tri décroissant : les plus grosses dettes apparaissent en premier
+    eleves_en_retard.sort(key=lambda x: x["reste_a_payer"], reverse=True)
+
     return {
-        "annee_active": "2025-2026",
-        "effectifs": {
-            "total": total_eleves,
-            "garcons": total_eleves // 2,
-            "filles": total_eleves - (total_eleves // 2)
+        "statistiques": {
+            "total_eleves": total_eleves,
+            "total_classes": total_classes,
+            "total_personnel": total_personnel,
+            "filles": filles,
+            "garcons": garcons
         },
-        "classes": total_classes,
-        "personnel": {
-            "enseignants": total_enseignants,
-            "total": total_personnel
+        "finances": {
+            "total_attendu": total_attendu,
+            "total_encaisse": total_encaisse,
+            "taux_recouvrement": round((total_encaisse / total_attendu * 100) if total_attendu > 0 else 0, 1)
         },
-        "alertes": [
-            {"id": 1, "message": "Validation des notes du 1er trimestre en attente", "type": "warning"},
-            {"id": 2, "message": "Réunion parents-professeurs ce vendredi à 16h", "type": "info"}
-        ],
-        "eleves_recents": [
-            # La liste se remplira quand on aura codé la création d'élèves
-        ],
-        "graphique_inscriptions": [
-            {"mois": "Sept", "élèves": 120},
-            {"mois": "Oct", "élèves": 135},
-            {"mois": "Nov", "élèves": 140},
-            {"mois": "Déc", "élèves": 142},
-            {"mois": "Jan", "élèves": 150}
-        ]
+        "alertes_paiements": eleves_en_retard[:10]  # Top 10 des débiteurs
     }

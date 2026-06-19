@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import api from "../api/axios";
-import { Users, School, BookOpen, UserCheck, AlertCircle, LayoutDashboard } from "lucide-react";
+import { Users, School, BookOpen, UserCheck, AlertCircle, LayoutDashboard, TrendingUp, DollarSign, Wallet } from "lucide-react";
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
@@ -12,7 +12,9 @@ export default function Dashboard() {
     totalPersonnel: 0,
     totalEnseignants: 0,
     elevesParCycle: { Maternelle: 0, Primaire: 0, Collège: 0, Lycée: 0 },
-    recentEleves: [] as any[]
+    recentEleves: [] as any[],
+    finances: { total_attendu: 0, total_encaisse: 0, taux_recouvrement: 0 },
+    alertesPaiements: [] as any[]
   });
   const [loading, setLoading] = useState(true);
 
@@ -22,11 +24,12 @@ export default function Dashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      // Comme pour les classes, on sépare pour éviter qu'une erreur sur /personnel ne bloque le reste
       let eleves = [];
       let classes = [];
       let personnel = [];
+      let dashboardFinances = null;
 
+      // Récupération des données en parallèle (séparées pour éviter qu'une erreur bloque le reste)
       try {
         const elevesRes = await api.get("/eleves/");
         eleves = elevesRes.data;
@@ -41,6 +44,11 @@ export default function Dashboard() {
         const personnelRes = await api.get("/personnel/");
         personnel = personnelRes.data;
       } catch (e) { console.error("Erreur chargement personnel", e); }
+
+      try {
+        const dashRes = await api.get("/dashboard/");
+        dashboardFinances = dashRes.data;
+      } catch (e) { console.error("Erreur chargement finances", e); }
       
       // 1. Calculs ultra-robustes Filles / Garçons (Protection contre les null)
       const garcons = eleves.filter((e: any) => {
@@ -73,7 +81,6 @@ export default function Dashboard() {
           else if (niveau.includes("primaire")) cycles.Primaire++;
           else if (niveau.includes("collège") || niveau.includes("college")) cycles.Collège++;
           else if (niveau.includes("lycée") || niveau.includes("lycee")) cycles.Lycée++;
-          // Fallback : si le niveau ne correspond à rien de précis, on se base sur le nom
           else {
              const text = `${classeDeLeleve.nom}`.toLowerCase();
              if (text.includes("maternelle") || text.includes("pré")) cycles.Maternelle++;
@@ -93,7 +100,10 @@ export default function Dashboard() {
         totalPersonnel: personnel.length,
         totalEnseignants: enseignants,
         elevesParCycle: cycles,
-        recentEleves: recents
+        recentEleves: recents,
+        // Ajout des données financières issues de notre nouvelle API
+        finances: dashboardFinances?.finances || { total_attendu: 0, total_encaisse: 0, taux_recouvrement: 0 },
+        alertesPaiements: dashboardFinances?.alertes_paiements || []
       });
 
     } catch (error) {
@@ -103,13 +113,14 @@ export default function Dashboard() {
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-gray-500">Chargement du tableau de bord...</div>;
+  if (loading) return <div className="p-8 text-center text-gray-500 font-medium">Chargement du tableau de bord...</div>;
 
   const maxEffectif = Math.max(...Object.values(stats.elevesParCycle), 1); 
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center mb-4">
+    <div className="space-y-8">
+      {/* HEADER */}
+      <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-800 flex items-center">
             <LayoutDashboard className="mr-3 text-blue-600" size={32} />
@@ -122,6 +133,7 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* --- SECTION 1 : VUE D'ENSEMBLE SCOLAIRE --- */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center">
           <div className="p-4 bg-blue-50 text-blue-600 rounded-lg mr-4"><Users size={28} /></div>
@@ -163,32 +175,126 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 lg:col-span-2">
-          <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center">
-            <School className="mr-2 text-blue-600" size={20}/> Répartition par Cycle
-          </h3>
-          <div className="flex items-end justify-around h-64 mt-4 border-b border-gray-200 pb-2 relative">
-            {Object.entries(stats.elevesParCycle).map(([cycle, count]) => {
-              const heightPercentage = (count / maxEffectif) * 100;
-              return (
-                <div key={cycle} className="flex flex-col items-center w-1/5 group h-full justify-end">
-                  <span className="mb-2 text-sm font-bold text-blue-600 transition-opacity">{count} élève(s)</span>
-                  <div 
-                    className="w-full bg-blue-500 hover:bg-blue-600 rounded-t-md transition-all duration-700 ease-out"
-                    style={{ height: `${Math.max(heightPercentage, 2)}%` }} 
-                  ></div>
-                  <span className="mt-3 text-sm font-medium text-gray-600">{cycle}</span>
-                </div>
-              );
-            })}
+      {/* --- SECTION 2 : SYNTHÈSE FINANCIÈRE --- */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <h2 className="text-lg font-bold text-gray-800 flex items-center mb-6">
+          <TrendingUp className="mr-2 text-blue-600" size={24} /> Trésorerie de l'établissement
+        </h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="p-5 bg-gray-50 rounded-xl border border-gray-200">
+            <div className="flex justify-between items-start mb-2">
+              <div>
+                <p className="text-sm text-gray-500 font-medium">Scolarité Totale Attendue</p>
+                <h3 className="text-2xl font-bold text-gray-800 mt-1">{stats.finances.total_attendu.toLocaleString('fr-FR')} FCFA</h3>
+              </div>
+              <div className="p-2 bg-gray-200 rounded-lg text-gray-600"><DollarSign size={18} /></div>
+            </div>
+          </div>
+
+          <div className="p-5 bg-green-50 rounded-xl border border-green-100">
+            <div className="flex justify-between items-start mb-2">
+              <div>
+                <p className="text-sm text-green-700 font-medium">Montant Total Encaissé</p>
+                <h3 className="text-2xl font-bold text-green-700 mt-1">{stats.finances.total_encaisse.toLocaleString('fr-FR')} FCFA</h3>
+              </div>
+              <div className="p-2 bg-green-200 rounded-lg text-green-700"><Wallet size={18} /></div>
+            </div>
+            <div className="w-full bg-green-200/50 rounded-full h-2 mt-4">
+              <div className="bg-green-500 h-2 rounded-full transition-all duration-500" style={{ width: `${stats.finances.taux_recouvrement}%` }}></div>
+            </div>
+            <p className="text-xs text-green-700 mt-2 font-medium">{stats.finances.taux_recouvrement}% de recouvrement</p>
+          </div>
+
+          <div className="p-5 bg-red-50 rounded-xl border border-red-100">
+            <div className="flex justify-between items-start mb-2">
+              <div>
+                <p className="text-sm text-red-700 font-medium">Reste à Recouvrer</p>
+                <h3 className="text-2xl font-bold text-red-700 mt-1">{(stats.finances.total_attendu - stats.finances.total_encaisse).toLocaleString('fr-FR')} FCFA</h3>
+              </div>
+              <div className="p-2 bg-red-200 rounded-lg text-red-700"><AlertCircle size={18} /></div>
+            </div>
           </div>
         </div>
+      </div>
 
+      {/* --- SECTION 3 : ANALYSE ET DÉTAILS --- */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Colonne de Gauche (Graphique + Liste des Impayés) */}
+        <div className="space-y-6 lg:col-span-2">
+          
+          {/* Graphique des cycles */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center">
+              <School className="mr-2 text-blue-600" size={20}/> Répartition par Cycle
+            </h3>
+            <div className="flex items-end justify-around h-64 mt-4 border-b border-gray-200 pb-2 relative">
+              {Object.entries(stats.elevesParCycle).map(([cycle, count]) => {
+                const heightPercentage = (count / maxEffectif) * 100;
+                return (
+                  <div key={cycle} className="flex flex-col items-center w-1/5 group h-full justify-end">
+                    <span className="mb-2 text-sm font-bold text-blue-600 transition-opacity">{count} élève(s)</span>
+                    <div 
+                      className="w-full bg-blue-500 hover:bg-blue-600 rounded-t-md transition-all duration-700 ease-out"
+                      style={{ height: `${Math.max(heightPercentage, 2)}%` }} 
+                    ></div>
+                    <span className="mt-3 text-sm font-medium text-gray-600">{cycle}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Liste Rouge des Impayés */}
+          {stats.alertesPaiements.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm border border-red-100 overflow-hidden">
+              <div className="bg-red-50 p-4 border-b border-red-100 flex justify-between items-center">
+                <h3 className="font-bold text-red-800 flex items-center">
+                  <AlertCircle className="mr-2" size={20} /> Élèves en retard de paiement
+                </h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-white text-gray-500 text-sm border-b">
+                      <th className="p-4 font-medium">Nom de l'élève</th>
+                      <th className="p-4 font-medium">Classe</th>
+                      <th className="p-4 font-medium">Reste à payer</th>
+                      <th className="p-4 font-medium">Progression</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.alertesPaiements.map((eleve: any) => (
+                      <tr key={eleve.id} className="border-b hover:bg-gray-50 transition-colors">
+                        <td className="p-4 font-medium text-gray-800">{eleve.nom} {eleve.prenom}</td>
+                        <td className="p-4 text-gray-600">{eleve.classe}</td>
+                        <td className="p-4 font-bold text-red-600">{eleve.reste_a_payer.toLocaleString('fr-FR')} FCFA</td>
+                        <td className="p-4">
+                          <div className="flex items-center w-full max-w-[150px]">
+                            <div className="w-full bg-gray-200 rounded-full h-2 mr-2">
+                              <div 
+                                className={`h-2 rounded-full ${eleve.taux_paye > 50 ? 'bg-yellow-400' : 'bg-red-500'}`} 
+                                style={{ width: `${eleve.taux_paye}%` }}>
+                              </div>
+                            </div>
+                            <span className="text-xs text-gray-500 font-medium">{eleve.taux_paye}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Colonne de Droite (Alertes et Inscriptions) */}
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-              <AlertCircle className="mr-2 text-red-500" size={20}/> Alertes
+              <AlertCircle className="mr-2 text-yellow-500" size={20}/> Notifications
             </h3>
             <div className="p-3 bg-yellow-50 text-yellow-800 rounded-lg text-sm mb-3 border border-yellow-100 font-medium">
               Validation des notes en attente
@@ -199,7 +305,7 @@ export default function Dashboard() {
           </div>
 
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">Élèves récents</h3>
+            <h3 className="text-lg font-bold text-gray-800 mb-4">Dernières inscriptions</h3>
             {stats.recentEleves.length > 0 ? (
               <div className="space-y-3">
                 {stats.recentEleves.map(eleve => (
@@ -214,11 +320,12 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="p-4 text-center text-sm text-gray-400 bg-gray-50 border border-dashed border-gray-200 rounded-lg">
-                Aucun élève.
+                Aucun élève récent.
               </div>
             )}
           </div>
         </div>
+
       </div>
     </div>
   );

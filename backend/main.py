@@ -4,11 +4,18 @@ from routers import auth, utilisateurs # On importe le nouveau routeur
 import models
 from database import engine
 from fastapi.middleware.cors import CORSMiddleware
-from routers import auth, utilisateurs, dashboard, personnel, classes, eleves
+from fastapi.staticfiles import StaticFiles # <-- Nouvelle importation
+import os # <-- Nouvelle importation
+from routers import auth, utilisateurs, dashboard, personnel, classes, eleves, parametres, paiements
+
+# Création du dossier uploads s'il n'existe pas
+os.makedirs("uploads", exist_ok=True)
 
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="API Gestion Scolaire Moderne")
+
+app.mount("/static", StaticFiles(directory="uploads"), name="static")
 
 # ==========================================
 # CONFIGURATION CORS (A ajouter obligatoirement)
@@ -42,6 +49,8 @@ app.include_router(dashboard.router)
 app.include_router(personnel.router)
 app.include_router(classes.router)
 app.include_router(eleves.router)
+app.include_router(parametres.router)
+app.include_router(paiements.router)
 
 @app.get("/")
 def racine():

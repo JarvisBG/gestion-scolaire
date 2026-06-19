@@ -39,6 +39,8 @@ class Eleve(Base):
     adresse = Column(String, nullable=True)
     telephone_parents = Column(String, nullable=True)
     responsable_legal = Column(String, nullable=True)
+    scolarite_totale = Column(Float, default=0.0)
+    
     
     statut_inscription = Column(String, default="En attente")
     observations = Column(Text, nullable=True)
@@ -46,6 +48,7 @@ class Eleve(Base):
 
     classe = relationship("Classe", back_populates="eleves")
     notes = relationship("Note", back_populates="eleve")
+    paiements = relationship("Paiement", back_populates="eleve", cascade="all, delete-orphan")
 
 class Matiere(Base):
     __tablename__ = "matieres"
@@ -91,3 +94,27 @@ class Employe(Base):
     
     utilisateur_id = Column(Integer, ForeignKey("utilisateurs.id"), unique=True, nullable=True)
     utilisateur = relationship("Utilisateur")
+
+class Etablissement(Base):
+    __tablename__ = "etablissement"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nom = Column(String, default="Mon École Moderne")
+    adresse = Column(String, nullable=True)
+    telephone = Column(String, nullable=True)
+    email = Column(String, nullable=True)
+    directeur = Column(String, nullable=True)
+    logo_url = Column(String, nullable=True) # <-- C'est ici qu'on stockera le lien vers l'image
+
+
+class Paiement(Base):
+    __tablename__ = "paiements"
+
+    id = Column(Integer, primary_key=True, index=True)
+    montant = Column(Float, nullable=False)
+    date_paiement = Column(Date, nullable=False)
+    motif = Column(String, nullable=False) # Ex: Inscription, Tranche 1, Tranche 2
+    mode_paiement = Column(String, nullable=False) # Ex: Espèces, Orange Money, Virement
+    eleve_id = Column(Integer, ForeignKey("eleves.id"))
+
+    eleve = relationship("Eleve", back_populates="paiements")

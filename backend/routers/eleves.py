@@ -86,9 +86,21 @@ def update_eleve(eleve_id: int, eleve_update: schemas.EleveBase, db: Session = D
 @router.delete("/{eleve_id}")
 def delete_eleve(eleve_id: int, db: Session = Depends(get_db)):
     eleve = db.query(models.Eleve).filter(models.Eleve.id == eleve_id).first()
-    if eleve is None:
+    if not eleve:
         raise HTTPException(status_code=404, detail="Élève introuvable")
     
+    # --- LE BOUCLIER COMPTABLE ---
+    # On regarde si cet élève a au moins un paiement enregistré
+    paiement_existant = db.query(models.Paiement).filter(models.Paiement.eleve_id == eleve_id).first()
+    
+    if paiement_existant:
+        # Si oui, on bloque poliment la suppression
+        raise HTTPException(
+            status_code=400, 
+            detail="Impossible de supprimer cet élève : un historique financier existe. Veuillez le désactiver ou l'archiver."
+        )
+    
+    # Si le dossier est vierge de tout paiement, on autorise la suppression
     db.delete(eleve)
     db.commit()
-    return {"message": f"L'élève avec l'ID {eleve_id} a été supprimé."}
+    return {"message": "Élève supprimé avec succès."}
