@@ -1,7 +1,7 @@
 # backend/schemas.py
 from pydantic import BaseModel
-from typing import Optional
-from datetime import date
+from typing import Optional, Any
+from datetime import date, time
 
 class Token(BaseModel):
     access_token: str
@@ -150,5 +150,58 @@ class PaiementCreate(PaiementBase):
 class PaiementResponse(PaiementBase):
     id: int
 
+    class Config:
+        from_attributes = True
+
+
+# --- SCHÉMAS MATIÈRES ---
+class MatiereBase(BaseModel):
+    nom: str
+    couleur: str = "#3B82F6"
+
+class MatiereCreate(MatiereBase):
+    pass
+
+class MatiereResponse(MatiereBase):
+    id: int
+    class Config:
+        from_attributes = True
+
+
+# TOUT EN BAS DU FICHIER :
+# ==========================================
+# --- SCHÉMAS SALLES ---
+# ==========================================
+class SalleBase(BaseModel):
+    nom: str
+    capacite: Optional[int] = None
+
+class SalleCreate(SalleBase):
+    pass
+
+class SalleResponse(SalleBase):
+    id: int
+    class Config:
+        from_attributes = True
+
+# ==========================================
+# --- SCHÉMAS SÉANCES (CALENDRIER) ---
+# ==========================================
+class SeanceBase(BaseModel):
+    date_seance: date
+    heure_debut: time
+    heure_fin: time
+    matiere_id: int
+    prof_id: int
+    classe_id: int
+    salle_id: Optional[int] = None
+
+class SeanceCreate(SeanceBase):
+    pass
+
+class SeanceResponse(SeanceBase):
+    id: int
+    # Nous n'avons plus besoin des champs "Any", l'ID suffit pour valider la création !
+    
     class Config:
         from_attributes = True

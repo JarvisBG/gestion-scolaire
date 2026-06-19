@@ -6,7 +6,7 @@ from database import engine
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles # <-- Nouvelle importation
 import os # <-- Nouvelle importation
-from routers import auth, utilisateurs, dashboard, personnel, classes, eleves, parametres, paiements
+from routers import auth, utilisateurs, dashboard, personnel, classes, eleves, parametres, paiements, calendrier, matieres
 
 # Création du dossier uploads s'il n'existe pas
 os.makedirs("uploads", exist_ok=True)
@@ -51,6 +51,8 @@ app.include_router(classes.router)
 app.include_router(eleves.router)
 app.include_router(parametres.router)
 app.include_router(paiements.router)
+app.include_router(calendrier.router)
+app.include_router(matieres.router)
 
 @app.get("/")
 def racine():

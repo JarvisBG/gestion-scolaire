@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, School, Users, GraduationCap, BookOpen, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, School, Users, GraduationCap, BookOpen, Settings, LogOut, Calendar } from "lucide-react";
 
 export default function Layout() {
   const navigate = useNavigate();
@@ -15,6 +15,7 @@ export default function Layout() {
     { path: "/personnel", name: "Personnel", icon: Users },
     { path: "/eleves", name: "Élèves", icon: GraduationCap },
     { path: "/matieres", name: "Matières", icon: BookOpen },
+    { path: "/planning", name: "Planning", icon: Calendar },
     { path: "/parametres", name: "Paramètres", icon: Settings },
   ];
 

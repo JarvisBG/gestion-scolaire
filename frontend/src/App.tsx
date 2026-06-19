@@ -7,6 +7,7 @@ import Personnel from "./pages/Personnel";
 import Eleves from "./pages/Eleves";
 import Matieres from "./pages/Matieres";
 import Parametres from "./pages/Parametres";
+import Planning from './pages/Planning';
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/eleves" element={<Eleves />} />
           <Route path="/matieres" element={<Matieres />} />
           <Route path="/parametres" element={<Parametres />} />
+          <Route path="/planning" element={<Planning />} />
         </Route>
         
         <Route path="*" element={<Navigate to="/" replace />} />
