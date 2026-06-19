@@ -3,7 +3,8 @@ import api from "../api/axios";
 import { Edit, Plus, Users, User, DoorOpen, Trash2, School, X, Download } from "lucide-react";
 
 interface Classe { id: number; nom: string; niveau: string; salle?: string; prof_principal?: string; }
-interface Eleve { id: number; classe_id: number; }
+// ✨ On ajoute le sexe dans l'interface Eleve pour pouvoir faire nos calculs
+interface Eleve { id: number; classe_id: number; sexe?: string; }
 interface Personnel { id: number; nom: string; prenom: string; fonction: string; }
 
 export default function Classes() {
@@ -21,15 +22,25 @@ export default function Classes() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [classesRes, elevesRes, personnelRes] = await Promise.all([
-        api.get("/classes/"), api.get("/eleves/"), api.get("/personnel/").catch(() => ({ data: [] }))
-      ]);
+      const classesRes = await api.get("/classes/");
       setClasses(classesRes.data);
+
+      const elevesRes = await api.get("/eleves/");
       setEleves(elevesRes.data);
-      // On ne garde que les enseignants pour le choix du prof principal
-      setEnseignants(personnelRes.data.filter((p: Personnel) => p.fonction === "Enseignant"));
-    } catch (error) { console.error("Erreur", error); } 
-    finally { setLoading(false); }
+
+      try {
+        const personnelRes = await api.get("/personnel/");
+        setEnseignants(personnelRes.data.filter((p: Personnel) => p.fonction === "Enseignant"));
+      } catch (personnelError) {
+        console.warn("Impossible de charger le personnel.");
+        setEnseignants([]);
+      }
+      
+    } catch (error) { 
+      console.error("Erreur générale lors de la récupération des données", error); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const openModal = (classe: Classe | null = null) => {
@@ -40,11 +51,17 @@ export default function Classes() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      if (editingClasse?.id) await api.put(`/classes/${editingClasse.id}`, editingClasse);
-      else await api.post("/classes/", editingClasse);
+      if (editingClasse?.id) {
+        await api.put(`/classes/${editingClasse.id}`, editingClasse);
+      } else {
+        await api.post("/classes/", editingClasse);
+      }
       fetchData();
       setIsModalOpen(false);
-    } catch (error) { alert("Erreur lors de la sauvegarde."); }
+    } catch (error) { 
+      console.error("Erreur de sauvegarde", error);
+      alert("Erreur lors de la sauvegarde."); 
+    }
   };
 
   const handleDelete = async (id: number) => {
@@ -52,11 +69,33 @@ export default function Classes() {
       try {
         await api.delete(`/classes/${id}`);
         fetchData();
-      } catch (error) { alert("Impossible de supprimer. Vérifiez s'il y a encore des élèves dedans."); }
+      } catch (error: any) { 
+        const errorMsg = error.response?.data?.detail || "Impossible de supprimer la classe.";
+        alert(errorMsg); 
+      }
     }
   };
 
-  const getEffectif = (classeId: number) => eleves.filter(e => e.classe_id === classeId).length;
+  // ✨ LA NOUVELLE FONCTION QUI CALCULE TOUT PAR CLASSE ✨
+  const getStatsClasse = (classeId: number) => {
+    const elevesDeLaClasse = eleves.filter(e => e.classe_id === classeId);
+    
+    const garcons = elevesDeLaClasse.filter(e => {
+      const s = (e.sexe || "").toString().trim().toUpperCase();
+      return s === "M" || s === "MASCULIN";
+    }).length;
+
+    const filles = elevesDeLaClasse.filter(e => {
+      const s = (e.sexe || "").toString().trim().toUpperCase();
+      return s === "F" || s === "FÉMININ" || s === "FEMININ";
+    }).length;
+
+    return {
+      total: elevesDeLaClasse.length,
+      garcons,
+      filles
+    };
+  };
 
   return (
     <div className="space-y-6">
@@ -85,7 +124,9 @@ export default function Classes() {
       {loading ? ( <div className="p-8 text-center text-gray-500">Chargement...</div> ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {classes.map((classe) => {
-            const effectif = getEffectif(classe.id);
+            // On récupère les statistiques détaillées pour cette classe précise
+            const stats = getStatsClasse(classe.id);
+            
             return (
               <div key={classe.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
                 <div className="flex justify-between items-start mb-4">
@@ -94,14 +135,33 @@ export default function Classes() {
                     <span className="inline-block mt-1 px-2 py-1 bg-green-50 text-green-600 text-xs font-semibold rounded border border-green-100">{classe.niveau}</span>
                   </div>
                   <div className="flex gap-2 print:hidden">
-                    <button onClick={() => openModal(classe)} className="text-orange-500 hover:bg-orange-50 p-1.5 rounded"><Edit size={18} /></button>
-                    <button onClick={() => handleDelete(classe.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded"><Trash2 size={18} /></button>
+                    <button onClick={() => openModal(classe)} className="text-orange-500 hover:bg-orange-50 p-1.5 rounded" title="Modifier"><Edit size={18} /></button>
+                    <button onClick={() => handleDelete(classe.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded" title="Supprimer"><Trash2 size={18} /></button>
                   </div>
                 </div>
+                
                 <div className="space-y-3 text-sm text-gray-600 mt-6 border-t border-gray-50 pt-4">
                   <p className="flex items-center"><DoorOpen size={16} className="mr-2 text-gray-400" /> <strong>Salle:</strong> <span className="ml-1">{classe.salle || "-"}</span></p>
                   <p className="flex items-center"><User size={16} className="mr-2 text-gray-400" /> <strong>Prof. Principal:</strong> <span className="ml-1 text-gray-800 font-medium">{classe.prof_principal || "Non assigné"}</span></p>
-                  <p className="flex items-center"><Users size={16} className="mr-2 text-gray-400" /> <strong>Effectif:</strong> <span className={`ml-1 font-bold ${effectif > 0 ? "text-blue-600" : "text-gray-400"}`}>{effectif} élève(s)</span></p>
+                  
+                  {/* ✨ AFFICHAGE DE L'EFFECTIF AVEC LES DÉTAILS ✨ */}
+                  <div className="flex items-start mt-2">
+                    <Users size={16} className="mr-2 mt-0.5 text-gray-400" /> 
+                    <div className="flex flex-col">
+                      <span>
+                        <strong>Effectif:</strong> 
+                        <span className={`ml-1 font-bold ${stats.total > 0 ? "text-blue-600" : "text-gray-400"}`}>
+                          {stats.total} élève(s)
+                        </span>
+                      </span>
+                      {stats.total > 0 && (
+                        <span className="text-xs text-gray-500 mt-0.5">
+                          {stats.garcons} Garçon(s) • {stats.filles} Fille(s)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
                 </div>
               </div>
             );

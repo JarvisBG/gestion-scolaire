@@ -1,6 +1,7 @@
 # backend/schemas.py
 from pydantic import BaseModel
 from typing import Optional
+from datetime import date
 
 class Token(BaseModel):
     access_token: str
@@ -16,7 +17,7 @@ class UtilisateurBase(BaseModel):
     role: str 
 
 class UtilisateurCreate(UtilisateurBase):
-    mot_de_passe: str  # <-- On utilise aussi mot_de_passe ici
+    mot_de_passe: str
 
 class UtilisateurResponse(UtilisateurBase):
     id: int
@@ -24,11 +25,6 @@ class UtilisateurResponse(UtilisateurBase):
 
     class Config:
         from_attributes = True
-
-# Ajoute ceci à la fin de schemas.py
-from datetime import date
-from typing import Optional
-from pydantic import BaseModel
 
 class EmployeBase(BaseModel):
     photo: Optional[str] = None
@@ -47,7 +43,6 @@ class EmployeBase(BaseModel):
 class EmployeCreate(EmployeBase):
     pass
 
-# Schéma spécifique pour la modification (tous les champs sont optionnels)
 class EmployeUpdate(BaseModel):
     photo: Optional[str] = None
     nom: Optional[str] = None
@@ -68,11 +63,8 @@ class EmployeResponse(EmployeBase):
     utilisateur_id: Optional[int] = None
 
     class Config:
-        from_attributes = True # Remplace orm_mode=True pour Pydantic V2
+        from_attributes = True
 
-# Ajoute ceci à la fin de schemas.py
-
-# Un mini-schéma pour afficher juste le nom du prof sans charger toute sa fiche
 class EmployeMinimal(BaseModel):
     id: int
     nom: str
@@ -84,8 +76,8 @@ class EmployeMinimal(BaseModel):
 class ClasseBase(BaseModel):
     nom: str
     niveau: str
-    salle: str
-    professeur_principal_id: Optional[int] = None
+    salle: Optional[str] = None
+    prof_principal: Optional[str] = None
 
 class ClasseCreate(ClasseBase):
     pass
@@ -94,36 +86,27 @@ class ClasseUpdate(BaseModel):
     nom: Optional[str] = None
     niveau: Optional[str] = None
     salle: Optional[str] = None
-    professeur_principal_id: Optional[int] = None
+    prof_principal: Optional[str] = None
 
 class ClasseResponse(ClasseBase):
     id: int
-    # On inclut les infos basiques du prof principal dans la réponse !
-    professeur_principal: Optional[EmployeMinimal] = None
 
     class Config:
         from_attributes = True
-
-
-from pydantic import BaseModel
-from typing import Optional
-from datetime import date
-
-# --- SCHÉMAS POUR LES ÉLÈVES ---
 
 class EleveBase(BaseModel):
     matricule: Optional[str] = None
     nom: str
     prenom: str
-    date_naissance: date
-    classe_id: int
-    statut_inscription: Optional[str] = "Inscrit" # Notre nouvelle colonne par défaut
-    observations: Optional[str] = None
+    sexe: Optional[str] = "M" # ✨ LE SAUVEUR DES STATISTIQUES EST LÀ ✨
     date_naissance: Optional[date] = None
     lieu_naissance: Optional[str] = None
     adresse: Optional[str] = None
     telephone_parents: Optional[str] = None
     responsable_legal: Optional[str] = None
+    classe_id: int
+    statut_inscription: Optional[str] = "Inscrit"
+    observations: Optional[str] = None
 
 class EleveCreate(EleveBase):
     pass
@@ -132,4 +115,4 @@ class Eleve(EleveBase):
     id: int
 
     class Config:
-        from_attributes = True  # Permet à Pydantic de lire les modèles SQLAlchemy
+        from_attributes = True

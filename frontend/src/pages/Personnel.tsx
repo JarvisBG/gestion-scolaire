@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import api from "../api/axios"; // Assure-toi d'utiliser ton fichier axios avec l'intercepteur !
+import api from "../api/axios"; 
 import { Users, Search, Plus, Edit, Eye, X, UserCircle, Download } from "lucide-react";
 
 interface Employe {
@@ -45,9 +45,8 @@ export default function Personnel() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Nettoyage avant envoi
       const payload = { ...currentEmploye };
-      if (payload.email === "") payload.email = "N/A"; // Pour éviter les soucis de DB si vide
+      if (payload.email === "") payload.email = "N/A"; 
       if (payload.observations === "") payload.observations = null;
 
       if (modalMode === "create") {
@@ -59,7 +58,6 @@ export default function Personnel() {
       fetchEmployes();
     } catch (error: any) {
       console.error("Erreur détaillée:", error);
-      // ✨ LA LECTURE DU MESSAGE D'ERREUR DU BACKEND EST ICI ✨
       if (error.response && error.response.data && error.response.data.detail) {
         alert("⚠️ Erreur : " + error.response.data.detail);
       } else {
@@ -79,7 +77,6 @@ export default function Personnel() {
           <p className="text-sm text-gray-500 mt-1">Gérez les dossiers de vos employés et enseignants.</p>
         </div>
         <div className="flex space-x-3">
-          {/* BOUTON PDF MAGIQUE */}
           <button onClick={() => window.print()} className="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 font-medium transition-colors">
             <Download className="w-4 h-4 mr-2" /> Exporter PDF
           </button>
@@ -89,7 +86,6 @@ export default function Personnel() {
         </div>
       </div>
 
-      {/* Titre visible uniquement à l'impression */}
       <div className="hidden print:block mb-6">
         <h1 className="text-2xl font-bold">Liste du Personnel - Année 2025/2026</h1>
       </div>
@@ -174,6 +170,15 @@ export default function Personnel() {
                       <p className="text-sm text-gray-600 mb-1"><span className="font-medium text-gray-800">Email:</span> {currentEmploye.email}</p>
                     </div>
                   </div>
+
+                  {/* ⚡ LE BOUTON RETROUVÉ EST ICI ⚡ */}
+                  <div className="flex justify-end pt-4 border-t mt-6 print:hidden">
+                     <button className="px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900 shadow-sm text-sm font-medium flex items-center">
+                        <UserCircle className="w-4 h-4 mr-2" />
+                        Générer un compte de connexion
+                     </button>
+                  </div>
+
                 </div>
               ) : (
                 <form onSubmit={handleSave} className="space-y-4">

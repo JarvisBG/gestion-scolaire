@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import api from "../api/axios";
-import { Search, Plus, Edit, Trash2, Eye, X, GraduationCap, BookOpen, Backpack, School } from "lucide-react";
+import { Search, Plus, Edit, Trash2, Eye, X, GraduationCap, BookOpen, Backpack, School, Download } from "lucide-react";
 
 // --- INTERFACES ---
 interface Classe {
@@ -18,7 +18,7 @@ interface Eleve {
   statut_inscription: string;
   observations: string | null;
   classe_id: number;
-  classe?: Classe; // Sera rempli par React
+  classe?: Classe;
   date_naissance?: string;
   lieu_naissance?: string;
   adresse?: string;
@@ -49,13 +49,11 @@ export default function Eleves() {
 
       const fetchedClasses = classesRes.data;
       
-      // LA CORRECTION EST ICI : On associe manuellement la classe à l'élève pour le tableau
       const elevesAvecClasses = elevesRes.data.map((eleve: Eleve) => ({
         ...eleve,
         classe: fetchedClasses.find((c: Classe) => c.id === eleve.classe_id)
       }));
 
-      // On trie aussi par ordre alphabétique par défaut
       elevesAvecClasses.sort((a: Eleve, b: Eleve) => a.nom.localeCompare(b.nom));
 
       setClasses(fetchedClasses);
@@ -69,13 +67,10 @@ export default function Eleves() {
 
   const getStatusBadge = (statut: string) => {
     switch (statut) {
-      case "Inscrit":
-        return <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">🟢 Inscrit</span>;
-      case "Dossier Incomplet":
-        return <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-semibold">🟠 Incomplet</span>;
+      case "Inscrit": return <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">🟢 Inscrit</span>;
+      case "Dossier Incomplet": return <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-semibold">🟠 Incomplet</span>;
       case "En attente":
-      default:
-        return <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-semibold">🔴 En attente</span>;
+      default: return <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-semibold">🔴 En attente</span>;
     }
   };
 
@@ -100,25 +95,20 @@ export default function Eleves() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // --- NOUVEAU : Nettoyage des données avant l'envoi ---
       const payload = { ...editingEleve };
-      
-      // 1. On retire l'objet 'classe' qui perturbe FastAPI
       delete payload.classe;
       
-      // 2. On transforme les textes vides en 'null' pour la base de données
       if (payload.date_naissance === "") payload.date_naissance = null;
       if (payload.lieu_naissance === "") payload.lieu_naissance = null;
       if (payload.adresse === "") payload.adresse = null;
       if (payload.telephone_parents === "") payload.telephone_parents = null;
       if (payload.responsable_legal === "") payload.responsable_legal = null;
       if (payload.observations === "") payload.observations = null;
-      // -----------------------------------------------------
 
       if (editingEleve?.id) {
         await api.put(`/eleves/${editingEleve.id}`, payload);
       } else {
-        await api.post("/eleves/", payload); // On envoie le payload nettoyé !
+        await api.post("/eleves/", payload);
       }
       fetchData();
       closeModal();
@@ -139,7 +129,6 @@ export default function Eleves() {
     }
   };
 
-  // --- LOGIQUE DE GROUPEMENT PAR BLOCS ---
   const filteredEleves = eleves.filter(e => 
     e.nom.toLowerCase().includes(searchTerm.toLowerCase()) || 
     e.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -156,7 +145,6 @@ export default function Eleves() {
     }
   };
 
-  // Fonction pour détecter le cycle en fonction du nom/niveau de la classe
   const getCycle = (classe?: Classe) => {
     if (!classe) return "Non assigné";
     const text = `${classe.nom} ${classe.niveau}`.toLowerCase();
@@ -171,17 +159,33 @@ export default function Eleves() {
 
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
+      
+      {/* En-tête : Câché à l'impression */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 print:hidden">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800">Gestion des Élèves</h1>
+          
+          <h2 className="text-3xl font-bold text-gray-800 flex items-center">
+            <GraduationCap className="w-8 h-8 mr-3 text-blue-600" />
+            Gestion des Elèves
+          </h2>
           <p className="text-gray-500">Consultez les effectifs classés par cycle et gérez les dossiers.</p>
         </div>
-        <button onClick={() => openModal()} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center shadow">
-          <Plus size={20} className="mr-2" /> Inscrire un Élève
-        </button>
+        <div className="flex space-x-3">
+          <button onClick={() => window.print()} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg flex items-center font-medium transition-colors">
+            <Download size={20} className="mr-2" /> Exporter PDF
+          </button>
+          <button onClick={() => openModal()} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center shadow">
+            <Plus size={20} className="mr-2" /> Inscrire un Élève
+          </button>
+        </div>
       </div>
 
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex items-center">
+      {/* Titre spécifique pour le document PDF imprimé */}
+      <div className="hidden print:block mb-6">
+        <h1 className="text-2xl font-bold">Liste des Élèves - Année 2025/2026</h1>
+      </div>
+
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex items-center print:hidden">
         <Search className="text-gray-400 mr-3" />
         <input type="text" placeholder="Rechercher par nom, prénom ou matricule..." className="w-full outline-none text-gray-700"
           value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
@@ -191,11 +195,10 @@ export default function Eleves() {
         <div className="p-8 text-center text-gray-500">Chargement des élèves...</div>
       ) : (
         <div className="space-y-8">
-          {/* On génère les blocs par cycle */}
           {cyclesOrder.map((cycle) => {
             const elevesDuCycle = filteredEleves.filter(e => getCycle(e.classe) === cycle);
             
-            if (elevesDuCycle.length === 0) return null; // S'il n'y a pas d'élèves, on n'affiche pas le bloc
+            if (elevesDuCycle.length === 0) return null;
 
             return (
               <div key={cycle} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -214,7 +217,7 @@ export default function Eleves() {
                       <th className="px-6 py-3 font-medium">Nom & Prénom</th>
                       <th className="px-6 py-3 font-medium">Classe</th>
                       <th className="px-6 py-3 font-medium">Statut</th>
-                      <th className="px-6 py-3 font-medium text-right">Actions</th>
+                      <th className="px-6 py-3 font-medium text-right print:hidden">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -224,7 +227,7 @@ export default function Eleves() {
                         <td className="px-6 py-4 font-bold text-gray-800">{eleve.nom} {eleve.prenom}</td>
                         <td className="px-6 py-4 text-gray-600">{eleve.classe?.nom || "Non assignée"}</td>
                         <td className="px-6 py-4">{getStatusBadge(eleve.statut_inscription)}</td>
-                        <td className="px-6 py-4 flex justify-end gap-2">
+                        <td className="px-6 py-4 flex justify-end gap-2 print:hidden">
                           <button onClick={() => openModal(eleve)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors" title="Détails / Gérer">
                             <Eye size={18} />
                           </button>
@@ -248,9 +251,9 @@ export default function Eleves() {
         </div>
       )}
 
-      {/* MODALE (Identique à la version précédente) */}
+      {/* MODALE : Cachée à l'impression */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 print:hidden">
           <div className="bg-white rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
             
             <div className="p-6 border-b flex justify-between items-center bg-gray-50">
@@ -263,7 +266,6 @@ export default function Eleves() {
             </div>
 
             <form onSubmit={handleSave} className="p-6 overflow-y-auto">
-              {/* SECTION 1 : IDENTITÉ */}
               <h3 className="font-semibold text-gray-800 border-b pb-2 mb-4">1. Identité de l'élève</h3>
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div>
@@ -273,7 +275,7 @@ export default function Eleves() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Classe *</label>
-                  <select className="w-full p-2 border rounded-lg"
+                  <select className="w-full p-2 border rounded-lg bg-white"
                     value={editingEleve?.classe_id || ""} onChange={e => setEditingEleve({...editingEleve, classe_id: Number(e.target.value)})}>
                     {classes.map(c => (
                       <option key={c.id} value={c.id}>{c.niveau} - {c.nom}</option>
@@ -292,7 +294,7 @@ export default function Eleves() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Sexe</label>
-                  <select className="w-full p-2 border rounded-lg"
+                  <select className="w-full p-2 border rounded-lg bg-white"
                     value={editingEleve?.sexe || "M"} onChange={e => setEditingEleve({...editingEleve, sexe: e.target.value})}>
                     <option value="M">Masculin</option>
                     <option value="F">Féminin</option>
@@ -310,7 +312,6 @@ export default function Eleves() {
                 </div>
               </div>
 
-              {/* SECTION 2 : COORDONNÉES */}
               <h3 className="font-semibold text-gray-800 border-b pb-2 mb-4">2. Coordonnées & Parents</h3>
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div>
@@ -330,7 +331,6 @@ export default function Eleves() {
                 </div>
               </div>
 
-              {/* SECTION 3 : INSCRIPTION */}
               <h3 className="font-semibold text-gray-800 border-b pb-2 mb-4">3. Statut & Observations</h3>
               <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-100">
                 <div className="mb-4">
@@ -356,7 +356,6 @@ export default function Eleves() {
                 </div>
               </div>
 
-              {/* BOUTONS */}
               <div className="mt-8 flex justify-end gap-3">
                 <button type="button" onClick={closeModal} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">
                   Annuler

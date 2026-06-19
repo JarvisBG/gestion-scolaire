@@ -7,9 +7,10 @@ export default function Dashboard() {
     totalEleves: 0,
     filles: 0,
     garcons: 0,
+    nonPrecise: 0,
     totalClasses: 0,
     totalPersonnel: 0,
-    totalEnseignants: 0, // Nouveau compteur
+    totalEnseignants: 0,
     elevesParCycle: { Maternelle: 0, Primaire: 0, Collège: 0, Lycée: 0 },
     recentEleves: [] as any[]
   });
@@ -21,19 +22,38 @@ export default function Dashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      const [elevesRes, classesRes, personnelRes] = await Promise.all([
-        api.get("/eleves/"),
-        api.get("/classes/"),
-        api.get("/personnel/").catch(() => ({ data: [] }))
-      ]);
+      // Comme pour les classes, on sépare pour éviter qu'une erreur sur /personnel ne bloque le reste
+      let eleves = [];
+      let classes = [];
+      let personnel = [];
 
-      const eleves = elevesRes.data;
-      const classes = classesRes.data;
-      const personnel = personnelRes.data;
+      try {
+        const elevesRes = await api.get("/eleves/");
+        eleves = elevesRes.data;
+      } catch (e) { console.error("Erreur chargement élèves", e); }
+
+      try {
+        const classesRes = await api.get("/classes/");
+        classes = classesRes.data;
+      } catch (e) { console.error("Erreur chargement classes", e); }
+
+      try {
+        const personnelRes = await api.get("/personnel/");
+        personnel = personnelRes.data;
+      } catch (e) { console.error("Erreur chargement personnel", e); }
       
-      // 1. Calculs ultra-robustes Filles / Garçons (ignorer la casse)
-      const filles = eleves.filter((e: any) => e.sexe && e.sexe.toUpperCase().startsWith('F')).length;
-      const garcons = eleves.filter((e: any) => e.sexe && e.sexe.toUpperCase().startsWith('M')).length;
+      // 1. Calculs ultra-robustes Filles / Garçons (Protection contre les null)
+      const garcons = eleves.filter((e: any) => {
+        const s = (e.sexe || "").toString().trim().toUpperCase();
+        return s === "M" || s === "MASCULIN";
+      }).length;
+
+      const filles = eleves.filter((e: any) => {
+        const s = (e.sexe || "").toString().trim().toUpperCase();
+        return s === "F" || s === "FÉMININ" || s === "FEMININ";
+      }).length;
+      
+      const nonPrecise = eleves.length - garcons - filles;
 
       // 2. Calcul des Enseignants
       const enseignants = personnel.filter((p: any) => p.fonction === "Enseignant").length;
@@ -44,13 +64,23 @@ export default function Dashboard() {
       // 4. Calcul du graphique
       const cycles = { Maternelle: 0, Primaire: 0, Collège: 0, Lycée: 0 };
       eleves.forEach((eleve: any) => {
-        const classeDeLeleve = classes.find((c: any) => c.id == eleve.classe_id); // == au lieu de ===
-        if (classeDeLeleve) {
-          const text = `${classeDeLeleve.nom} ${classeDeLeleve.niveau}`.toLowerCase();
-          if (text.includes("maternelle") || text.includes("pré")) cycles.Maternelle++;
-          else if (text.includes("primaire") || text.includes("cp") || text.includes("ce") || text.includes("cm")) cycles.Primaire++;
-          else if (text.includes("collège") || text.includes("college") || text.includes("ème") || text.includes("6e") || text.includes("3e") || text.includes("4e") || text.includes("5e")) cycles.Collège++;
-          else if (text.includes("lycée") || text.includes("lycee") || text.includes("seconde") || text.includes("première") || text.includes("terminale")) cycles.Lycée++;
+        const classeDeLeleve = classes.find((c: any) => c.id === eleve.classe_id || c.id === Number(eleve.classe_id));
+        
+        if (classeDeLeleve && classeDeLeleve.niveau) {
+          const niveau = classeDeLeleve.niveau.toLowerCase();
+          
+          if (niveau.includes("maternelle")) cycles.Maternelle++;
+          else if (niveau.includes("primaire")) cycles.Primaire++;
+          else if (niveau.includes("collège") || niveau.includes("college")) cycles.Collège++;
+          else if (niveau.includes("lycée") || niveau.includes("lycee")) cycles.Lycée++;
+          // Fallback : si le niveau ne correspond à rien de précis, on se base sur le nom
+          else {
+             const text = `${classeDeLeleve.nom}`.toLowerCase();
+             if (text.includes("maternelle") || text.includes("pré")) cycles.Maternelle++;
+             else if (text.includes("cp") || text.includes("ce") || text.includes("cm")) cycles.Primaire++;
+             else if (text.includes("ème") || text.includes("6e") || text.includes("3e") || text.includes("4e") || text.includes("5e")) cycles.Collège++;
+             else if (text.includes("seconde") || text.includes("première") || text.includes("terminale")) cycles.Lycée++;
+          }
         }
       });
 
@@ -58,6 +88,7 @@ export default function Dashboard() {
         totalEleves: eleves.length,
         filles,
         garcons,
+        nonPrecise,
         totalClasses: classes.length,
         totalPersonnel: personnel.length,
         totalEnseignants: enseignants,
@@ -66,7 +97,7 @@ export default function Dashboard() {
       });
 
     } catch (error) {
-      console.error("Erreur chargement dashboard", error);
+      console.error("Erreur fatale chargement dashboard", error);
     } finally {
       setLoading(false);
     }
@@ -97,7 +128,10 @@ export default function Dashboard() {
           <div>
             <p className="text-sm text-gray-500 font-medium">Total Élèves</p>
             <h3 className="text-2xl font-bold text-gray-800">{stats.totalEleves}</h3>
-            <p className="text-xs text-gray-400 mt-1">{stats.garcons} Garçons • {stats.filles} Filles</p>
+            <p className="text-xs text-gray-400 mt-1">
+              {stats.garcons} Garçons • {stats.filles} Filles
+              {stats.nonPrecise > 0 && ` • ${stats.nonPrecise} N/R`}
+            </p>
           </div>
         </div>
 

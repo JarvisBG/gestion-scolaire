@@ -11,45 +11,37 @@ class Utilisateur(Base):
     nom = Column(String)
     prenom = Column(String)
     role = Column(String)
-    mot_de_passe = Column(String)  # <-- C'est ce champ précis qui posait problème
+    mot_de_passe = Column(String)
     est_actif = Column(Boolean, default=True)
 
-# Trouve ou ajoute la table Classe dans models.py
 class Classe(Base):
     __tablename__ = "classes"
 
     id = Column(Integer, primary_key=True, index=True)
     nom = Column(String, index=True) # Ex: 6ème A
     niveau = Column(String) # Ex: Collège
-    salle = Column(String) # Ex: B12
+    salle = Column(String, nullable=True) # Ex: B12
+    prof_principal = Column(String, nullable=True) # Le nom du prof envoyé par React
+    
     matieres = relationship("Matiere", back_populates="classe")
-    
-    # Clé étrangère pour relier au Professeur Principal (table employes)
-    professeur_principal_id = Column(Integer, ForeignKey("employes.id"), nullable=True)
-    
-    # Permet de récupérer automatiquement les infos de l'employé lié
-    professeur_principal = relationship("Employe")
     eleves = relationship("Eleve", back_populates="classe")
 
 class Eleve(Base):
     __tablename__ = "eleves"
 
     id = Column(Integer, primary_key=True, index=True)
-    matricule = Column(String, unique=True, index=True)
+    matricule = Column(String, unique=True, index=True, nullable=True)
     nom = Column(String, index=True)
     prenom = Column(String)
-    sexe = Column(String)
-    date_naissance = Column(Date)
+    sexe = Column(String, nullable=True)
     date_naissance = Column(Date, nullable=True)
     lieu_naissance = Column(String, nullable=True)
     adresse = Column(String, nullable=True)
     telephone_parents = Column(String, nullable=True)
     responsable_legal = Column(String, nullable=True)
     
-    # ✨ LA NOUVELLE COLONNE EST ICI ✨
-    statut_inscription = Column(String, default="Inscrit")
+    statut_inscription = Column(String, default="En attente")
     observations = Column(Text, nullable=True)
-
     classe_id = Column(Integer, ForeignKey("classes.id"))
 
     classe = relationship("Classe", back_populates="eleves")
@@ -73,22 +65,18 @@ class Note(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     valeur = Column(Float, nullable=False)
-    sequence = Column(String, nullable=False) # Ex: Trimestre 1, Séquence 2
+    sequence = Column(String, nullable=False) 
     eleve_id = Column(Integer, ForeignKey("eleves.id"))
     matiere_id = Column(Integer, ForeignKey("matieres.id"))
 
     eleve = relationship("Eleve", back_populates="notes")
     matiere = relationship("Matiere", back_populates="notes")
 
-# Ajoute ceci à la fin de models.py
-from sqlalchemy import Column, Integer, String, Date, Text, ForeignKey
-from sqlalchemy.orm import relationship
-
 class Employe(Base):
     __tablename__ = "employes"
 
     id = Column(Integer, primary_key=True, index=True)
-    photo = Column(String, nullable=True) # Lien vers l'image
+    photo = Column(String, nullable=True) 
     nom = Column(String, index=True)
     prenom = Column(String)
     sexe = Column(String)
@@ -96,11 +84,10 @@ class Employe(Base):
     telephone = Column(String)
     email = Column(String, unique=True, index=True, nullable=True)
     adresse = Column(String)
-    fonction = Column(String) # Ex: Enseignant, Secrétaire, Vigile...
+    fonction = Column(String) 
     date_recrutement = Column(Date)
     statut = Column(String, default="Actif")
     observations = Column(Text, nullable=True)
     
-    # Lien optionnel vers un compte de connexion (Utilisateur)
     utilisateur_id = Column(Integer, ForeignKey("utilisateurs.id"), unique=True, nullable=True)
     utilisateur = relationship("Utilisateur")
