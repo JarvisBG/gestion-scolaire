@@ -18,6 +18,10 @@ export default function Dashboard() {
   });
   const [loading, setLoading] = useState(true);
 
+  // --- 🛡️ GESTION DES PERMISSIONS ---
+  const userRole = localStorage.getItem("role") || "Secrétaire";
+  const isDirector = userRole === "Directeur";
+
   useEffect(() => {
     fetchDashboardData();
   }, []);
@@ -156,23 +160,28 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center">
-          <div className="p-4 bg-purple-50 text-purple-600 rounded-lg mr-4"><BookOpen size={28} /></div>
-          <div>
-            <p className="text-sm text-gray-500 font-medium">Enseignants</p>
-            <h3 className="text-2xl font-bold text-gray-800">{stats.totalEnseignants}</h3>
-            <p className="text-xs text-purple-500 mt-1">Équipe pédagogique</p>
-          </div>
-        </div>
+        {/* CES DEUX CARTES SONT UNIQUEMENT VISIBLES PAR LE DIRECTEUR */}
+        {isDirector && (
+          <>
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center">
+              <div className="p-4 bg-purple-50 text-purple-600 rounded-lg mr-4"><BookOpen size={28} /></div>
+              <div>
+                <p className="text-sm text-gray-500 font-medium">Enseignants</p>
+                <h3 className="text-2xl font-bold text-gray-800">{stats.totalEnseignants}</h3>
+                <p className="text-xs text-purple-500 mt-1">Équipe pédagogique</p>
+              </div>
+            </div>
 
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center">
-          <div className="p-4 bg-orange-50 text-orange-600 rounded-lg mr-4"><UserCheck size={28} /></div>
-          <div>
-            <p className="text-sm text-gray-500 font-medium">Total Personnel</p>
-            <h3 className="text-2xl font-bold text-gray-800">{stats.totalPersonnel}</h3>
-            <p className="text-xs text-orange-500 mt-1">Membres enregistrés</p>
-          </div>
-        </div>
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center">
+              <div className="p-4 bg-orange-50 text-orange-600 rounded-lg mr-4"><UserCheck size={28} /></div>
+              <div>
+                <p className="text-sm text-gray-500 font-medium">Total Personnel</p>
+                <h3 className="text-2xl font-bold text-gray-800">{stats.totalPersonnel}</h3>
+                <p className="text-xs text-orange-500 mt-1">Membres enregistrés</p>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* --- SECTION 2 : SYNTHÈSE FINANCIÈRE --- */}

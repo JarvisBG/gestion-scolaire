@@ -20,6 +20,11 @@ export default function Planning() {
     classe_id: "", matiere_id: "", prof_id: "", salle_id: ""
   });
 
+  // --- 🛡️ GESTION DES PERMISSIONS ---
+  const userRole = localStorage.getItem("role") || "Enseignant";
+  // Le directeur et la secrétaire peuvent programmer/modifier les cours
+  const canEdit = userRole === "Directeur" || userRole === "Secrétaire";
+
   // --- CHARGEMENT INITIAL ---
   useEffect(() => {
     fetchAllData();
@@ -78,6 +83,8 @@ export default function Planning() {
 
   const handleCreateSeance = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEdit) return; // Sécurité supplémentaire
+
     try {
       // Préparation propre des données pour le backend
       const payload = {
@@ -86,7 +93,7 @@ export default function Planning() {
         classe_id: Number(newSeance.classe_id),
         matiere_id: Number(newSeance.matiere_id),
         prof_id: Number(newSeance.prof_id),
-        // Si le champ salle est vide, on envoie null (Le backend comprendra que c'est la salle par défaut)
+        // Si le champ salle est vide, on envoie null
         salle_id: newSeance.salle_id ? Number(newSeance.salle_id) : null 
       };
       
@@ -101,6 +108,7 @@ export default function Planning() {
   };
 
   const handleDelete = async (id: number) => {
+    if (!canEdit) return; // Sécurité supplémentaire
     if (!window.confirm("Annuler ce cours ?")) return;
     try {
       await api.delete(`/calendrier/seances/${id}`);
@@ -129,9 +137,16 @@ export default function Planning() {
           <button onClick={() => changeDay(1)} className="p-2 hover:bg-white hover:shadow-sm rounded transition-all"><ChevronRight size={20} /></button>
         </div>
 
-        <button onClick={() => setIsModalOpen(true)} className="flex items-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
-          <Plus size={20} className="mr-2" /> Programmer un cours
-        </button>
+        {/* Bouton de programmation (caché pour les enseignants) */}
+        {canEdit ? (
+          <button onClick={() => setIsModalOpen(true)} className="flex items-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
+            <Plus size={20} className="mr-2" /> Programmer un cours
+          </button>
+        ) : (
+          <div className="text-sm text-gray-500 italic bg-gray-50 px-4 py-2 rounded-lg border border-gray-100">
+            Mode lecture seule
+          </div>
+        )}
       </div>
 
       {/* LA GRILLE DES COURS */}
@@ -140,7 +155,7 @@ export default function Planning() {
           <div className="flex flex-col items-center justify-center h-full py-20 text-gray-400">
             <CalendarIcon size={64} className="mb-4 opacity-20" />
             <p className="text-lg font-medium">Aucun cours programmé pour cette journée.</p>
-            <p className="text-sm">Cliquez sur "Programmer un cours" pour commencer.</p>
+            {canEdit && <p className="text-sm">Cliquez sur "Programmer un cours" pour commencer.</p>}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -157,9 +172,12 @@ export default function Planning() {
                       <span className="px-3 py-1 bg-gray-100 text-gray-800 font-bold text-sm rounded-lg flex items-center border">
                         <Clock size={14} className="mr-1.5" /> {seance.heure_debut.slice(0,5)} - {seance.heure_fin.slice(0,5)}
                       </span>
-                      <button onClick={() => handleDelete(seance.id)} className="text-red-400 hover:text-red-600 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Trash2 size={18} />
-                      </button>
+                      {/* L'icône de suppression (Corbeille) est cachée pour l'enseignant */}
+                      {canEdit && (
+                        <button onClick={() => handleDelete(seance.id)} className="text-red-400 hover:text-red-600 p-1 opacity-0 group-hover:opacity-100 transition-opacity" title="Annuler le cours">
+                          <Trash2 size={18} />
+                        </button>
+                      )}
                     </div>
 
                     <h3 className="text-xl font-black text-gray-800 mb-1">{seance.classe_nom}</h3>
@@ -179,8 +197,8 @@ export default function Planning() {
         )}
       </div>
 
-      {/* MODALE : PROGRAMMER UN COURS */}
-      {isModalOpen && (
+      {/* MODALE : PROGRAMMER UN COURS (L'enseignant n'a pas accès à ce code de toute façon) */}
+      {isModalOpen && canEdit && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
             <div className="p-5 border-b flex justify-between items-center bg-gray-50">

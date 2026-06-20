@@ -17,6 +17,11 @@ export default function Classes() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClasse, setEditingClasse] = useState<Partial<Classe> | null>(null);
 
+  // --- 🛡️ GESTION DES PERMISSIONS ---
+  const userRole = localStorage.getItem("role") || "Enseignant";
+  const canEdit = userRole === "Directeur" || userRole === "Secrétaire";
+  const canDelete = userRole === "Directeur";
+
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
@@ -44,12 +49,15 @@ export default function Classes() {
   };
 
   const openModal = (classe: Classe | null = null) => {
+    if (!canEdit) return; // Sécurité supplémentaire
     setEditingClasse(classe || { nom: "", niveau: "Primaire", salle: "", prof_principal: "" });
     setIsModalOpen(true);
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEdit) return; // Sécurité
+
     try {
       if (editingClasse?.id) {
         await api.put(`/classes/${editingClasse.id}`, editingClasse);
@@ -65,6 +73,7 @@ export default function Classes() {
   };
 
   const handleDelete = async (id: number) => {
+    if (!canDelete) return; // Sécurité
     if (window.confirm("Attention : Supprimer cette classe est définitif. Continuer ?")) {
       try {
         await api.delete(`/classes/${id}`);
@@ -111,9 +120,12 @@ export default function Classes() {
           <button onClick={() => window.print()} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg flex items-center font-medium transition-colors">
             <Download size={20} className="mr-2" /> Exporter PDF
           </button>
-          <button onClick={() => openModal()} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center shadow font-medium">
-            <Plus size={20} className="mr-2" /> Nouvelle Classe
-          </button>
+          {/* L'enseignant ne peut pas créer de nouvelle classe */}
+          {canEdit && (
+            <button onClick={() => openModal()} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center shadow font-medium">
+              <Plus size={20} className="mr-2" /> Nouvelle Classe
+            </button>
+          )}
         </div>
       </div>
 
@@ -134,9 +146,19 @@ export default function Classes() {
                     <h2 className="text-xl font-bold text-green-800">{classe.nom}</h2>
                     <span className="inline-block mt-1 px-2 py-1 bg-green-50 text-green-600 text-xs font-semibold rounded border border-green-100">{classe.niveau}</span>
                   </div>
+                  
+                  {/* Actions restreintes par rôle */}
                   <div className="flex gap-2 print:hidden">
-                    <button onClick={() => openModal(classe)} className="text-orange-500 hover:bg-orange-50 p-1.5 rounded" title="Modifier"><Edit size={18} /></button>
-                    <button onClick={() => handleDelete(classe.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded" title="Supprimer"><Trash2 size={18} /></button>
+                    {canEdit && (
+                      <button onClick={() => openModal(classe)} className="text-orange-500 hover:bg-orange-50 p-1.5 rounded" title="Modifier">
+                        <Edit size={18} />
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button onClick={() => handleDelete(classe.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded" title="Supprimer">
+                        <Trash2 size={18} />
+                      </button>
+                    )}
                   </div>
                 </div>
                 
@@ -169,8 +191,8 @@ export default function Classes() {
         </div>
       )}
 
-      {/* Modale d'édition */}
-      {isModalOpen && (
+      {/* Modale d'édition (Cachée pour l'enseignant de toute façon, mais on la laisse dans le code pour les autres) */}
+      {isModalOpen && canEdit && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 print:hidden">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
             <div className="flex justify-between items-center p-6 border-b border-gray-100">

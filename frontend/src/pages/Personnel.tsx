@@ -1,10 +1,22 @@
 import React, { useState, useEffect } from "react";
 import api from "../api/axios"; 
-import { Users, Search, Plus, Edit, Eye, X, UserCircle, Download } from "lucide-react";
+import { Users, Search, Plus, Edit, Eye, Trash2, Key, CheckCircle, ShieldAlert } from "lucide-react";
 
 interface Employe {
-  id?: number; photo?: string | null; nom: string; prenom: string; sexe: string; date_naissance: string;
-  telephone: string; email: string; adresse: string; fonction: string; date_recrutement: string; statut: string; observations?: string | null;
+  id?: number; 
+  photo?: string | null; 
+  nom: string; 
+  prenom: string; 
+  sexe: string; 
+  date_naissance: string;
+  telephone: string; 
+  email: string; 
+  adresse: string; 
+  fonction: string; 
+  date_recrutement: string; 
+  statut: string; 
+  observations?: string | null;
+  utilisateur_id?: number | null;
 }
 
 export default function Personnel() {
@@ -12,197 +24,286 @@ export default function Personnel() {
   const [recherche, setRecherche] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
+  // Modales
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit" | "view">("create");
+  const [isAccessModalOpen, setIsAccessModalOpen] = useState(false);
   
   const [currentEmploye, setCurrentEmploye] = useState<Employe>({
     nom: "", prenom: "", sexe: "M", date_naissance: "", telephone: "",
     email: "", adresse: "", fonction: "Enseignant", date_recrutement: "", statut: "Actif", observations: ""
   });
 
+  const [password, setPassword] = useState("");
+
+  useEffect(() => {
+    fetchEmployes();
+  }, []);
+
   const fetchEmployes = async () => {
     setIsLoading(true);
     try {
       const response = await api.get("/personnel/");
       setEmployes(response.data);
-    } catch (error) { console.error("Erreur", error); } 
-    finally { setIsLoading(false); }
-  };
-
-  useEffect(() => { fetchEmployes(); }, []);
-
-  const employesFiltres = employes.filter(emp => 
-    `${emp.nom} ${emp.prenom} ${emp.fonction}`.toLowerCase().includes(recherche.toLowerCase())
-  );
-
-  const openModal = (mode: "create" | "edit" | "view", employe?: Employe) => {
-    setModalMode(mode);
-    if (employe) setCurrentEmploye(employe);
-    else setCurrentEmploye({ nom: "", prenom: "", sexe: "M", date_naissance: "", telephone: "", email: "", adresse: "", fonction: "Enseignant", date_recrutement: "", statut: "Actif", observations: "" });
-    setIsModalOpen(true);
-  };
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const payload = { ...currentEmploye };
-      if (payload.email === "") payload.email = "N/A"; 
-      if (payload.observations === "") payload.observations = null;
-
-      if (modalMode === "create") {
-        await api.post("/personnel/", payload);
-      } else if (modalMode === "edit" && payload.id) {
-        await api.put(`/personnel/${payload.id}`, payload);
-      }
-      setIsModalOpen(false);
-      fetchEmployes();
-    } catch (error: any) {
-      console.error("Erreur détaillée:", error);
-      if (error.response && error.response.data && error.response.data.detail) {
-        alert("⚠️ Erreur : " + error.response.data.detail);
-      } else {
-        alert("❌ Une erreur inattendue est survenue. Vérifiez vos données.");
-      }
+    } catch (error) {
+      console.error("Erreur de chargement du personnel", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (modalMode === "create") {
+        await api.post("/personnel/", currentEmploye);
+        alert("✅ Employé ajouté avec succès !");
+      } else if (modalMode === "edit") {
+        await api.put(`/personnel/${currentEmploye.id}`, currentEmploye);
+        alert("✅ Modifications enregistrées !");
+      }
+      setIsModalOpen(false);
+      fetchEmployes();
+    } catch (error) {
+      console.error("Erreur lors de la sauvegarde", error);
+      alert("❌ Une erreur est survenue.");
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!window.confirm("Êtes-vous sûr de vouloir supprimer cet employé ?")) return;
+    try {
+      await api.delete(`/personnel/${id}`);
+      fetchEmployes();
+    } catch (error) {
+      console.error("Erreur de suppression", error);
+    }
+  };
+
+  // --- NOUVEAU : CRÉATION DU COMPTE UTILISATEUR ---
+  const handleCreateAccess = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentEmploye.email || !password) {
+      alert("L'email et le mot de passe sont obligatoires.");
+      return;
+    }
+
+    try {
+      // 1. On crée l'utilisateur dans le système de sécurité
+      const userPayload = {
+        email: currentEmploye.email,
+        nom: currentEmploye.nom,
+        prenom: currentEmploye.prenom,
+        mot_de_passe: password,
+        role: currentEmploye.fonction // Le rôle correspond à sa fonction (Directeur, Secrétaire, Enseignant)
+      };
+      
+      const userRes = await api.post("/utilisateurs/", userPayload);
+      
+      // 2. On lie ce nouvel utilisateur à la fiche employé
+      await api.put(`/personnel/${currentEmploye.id}`, {
+        ...currentEmploye,
+        utilisateur_id: userRes.data.id
+      });
+
+      alert(`✅ Accès généré avec succès pour ${currentEmploye.prenom} !`);
+      setIsAccessModalOpen(false);
+      setPassword("");
+      fetchEmployes();
+    } catch (error: any) {
+      console.error("Erreur lors de la création de l'accès", error);
+      alert("❌ Erreur : " + (error.response?.data?.detail || "Impossible de créer le compte. L'email est peut-être déjà utilisé."));
+    }
+  };
+
+  // Les fonctions autorisées à avoir un accès numérique
+  const fonctionsElegibles = ["Directeur", "Secrétaire", "Enseignant"];
+
+  const employesFiltres = employes.filter(emp => 
+    emp.nom.toLowerCase().includes(recherche.toLowerCase()) || 
+    emp.prenom.toLowerCase().includes(recherche.toLowerCase()) ||
+    emp.fonction.toLowerCase().includes(recherche.toLowerCase())
+  );
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden">
+    <div className="space-y-6 max-w-7xl mx-auto px-2 md:px-0">
+      
+      {/* EN-TÊTE RESPONSIVE */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-gray-800 flex items-center">
-            <Users className="w-8 h-8 mr-3 text-blue-600" />
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center">
+            <Users className="mr-3 text-blue-600" size={32} />
             Gestion du Personnel
-          </h2>
-          <p className="text-sm text-gray-500 mt-1">Gérez les dossiers de vos employés et enseignants.</p>
+          </h1>
+          <p className="text-gray-500 mt-1 text-sm md:text-base">Gérez vos employés et leurs accès à l'application.</p>
         </div>
-        <div className="flex space-x-3">
-          <button onClick={() => window.print()} className="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 font-medium transition-colors">
-            <Download className="w-4 h-4 mr-2" /> Exporter PDF
-          </button>
-          <button onClick={() => openModal("create")} className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 shadow-sm font-medium">
-            <Plus className="w-4 h-4 mr-2" /> Nouveau membre
-          </button>
-        </div>
+        <button 
+          onClick={() => {
+            setModalMode("create");
+            setCurrentEmploye({ nom: "", prenom: "", sexe: "M", date_naissance: "", telephone: "", email: "", adresse: "", fonction: "Enseignant", date_recrutement: "", statut: "Actif", observations: "" });
+            setIsModalOpen(true);
+          }} 
+          className="w-full md:w-auto bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center justify-center hover:bg-blue-700 transition"
+        >
+          <Plus size={20} className="mr-2" /> Ajouter un employé
+        </button>
       </div>
 
-      <div className="hidden print:block mb-6">
-        <h1 className="text-2xl font-bold">Liste du Personnel - Année 2025/2026</h1>
+      {/* BARRE DE RECHERCHE */}
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center">
+        <Search className="text-gray-400 mr-3" size={20} />
+        <input 
+          type="text" 
+          placeholder="Rechercher par nom, prénom ou fonction..." 
+          className="w-full outline-none text-gray-700"
+          value={recherche}
+          onChange={(e) => setRecherche(e.target.value)}
+        />
       </div>
 
-      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-3 print:hidden">
-        <Search className="w-5 h-5 text-gray-400" />
-        <input type="text" placeholder="Rechercher par nom, prénom ou fonction..." className="flex-1 outline-none text-gray-700 bg-transparent" value={recherche} onChange={(e) => setRecherche(e.target.value)} />
-      </div>
-
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        {isLoading ? ( <div className="p-10 text-center text-gray-500">Chargement des données...</div> ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-sm font-medium">
-                  <th className="p-4">Employé</th>
-                  <th className="p-4">Fonction</th>
-                  <th className="p-4">Contact</th>
-                  <th className="p-4">Statut</th>
-                  <th className="p-4 text-right print:hidden">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {employesFiltres.length === 0 ? ( <tr><td colSpan={5} className="p-6 text-center text-gray-500">Aucun employé trouvé.</td></tr> ) : (
-                  employesFiltres.map((emp) => (
-                    <tr key={emp.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="p-4 flex items-center space-x-3">
-                        <UserCircle className="w-10 h-10 text-gray-400" />
-                        <div>
-                          <p className="font-bold text-gray-800">{emp.nom} {emp.prenom}</p>
-                          <p className="text-xs text-gray-500">{emp.sexe === 'M' ? 'Homme' : 'Femme'}</p>
-                        </div>
-                      </td>
-                      <td className="p-4 text-sm text-gray-800 font-medium">{emp.fonction}</td>
-                      <td className="p-4 text-sm text-gray-600">
-                        <p className="font-medium text-gray-800">{emp.telephone}</p>
-                        <p className="text-xs text-gray-500">{emp.email}</p>
-                      </td>
-                      <td className="p-4">
-                        <span className={`px-2 py-1 text-xs font-bold rounded-full ${emp.statut === 'Actif' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{emp.statut}</span>
-                      </td>
-                      <td className="p-4 flex justify-end space-x-2 print:hidden">
-                        <button onClick={() => openModal("view", emp)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-md"><Eye className="w-4 h-4" /></button>
-                        <button onClick={() => openModal("edit", emp)} className="p-2 text-orange-600 hover:bg-orange-50 rounded-md"><Edit className="w-4 h-4" /></button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 print:hidden">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center p-6 border-b border-gray-100 sticky top-0 bg-gray-50 z-10">
-              <h3 className="text-xl font-bold text-gray-800">{modalMode === "create" ? "Ajouter un employé" : modalMode === "edit" ? "Modifier l'employé" : "Fiche de l'employé"}</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-700"><X className="w-6 h-6" /></button>
-            </div>
-
-            <div className="p-6">
-              {modalMode === "view" ? (
-                <div className="space-y-6">
-                  <div className="flex items-center space-x-6">
-                    <UserCircle className="w-24 h-24 text-gray-300" />
-                    <div>
-                      <h2 className="text-2xl font-bold text-gray-800">{currentEmploye.nom} {currentEmploye.prenom}</h2>
-                      <p className="text-lg text-blue-600 font-medium">{currentEmploye.fonction}</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h4 className="font-semibold text-gray-700 border-b pb-2 mb-3">Informations Personnelles</h4>
-                      <p className="text-sm text-gray-600 mb-1"><span className="font-medium text-gray-800">Sexe:</span> {currentEmploye.sexe === "M" ? "Masculin" : "Féminin"}</p>
-                      <p className="text-sm text-gray-600 mb-1"><span className="font-medium text-gray-800">Né(e) le:</span> {currentEmploye.date_naissance}</p>
-                    </div>
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h4 className="font-semibold text-gray-700 border-b pb-2 mb-3">Contact</h4>
-                      <p className="text-sm text-gray-600 mb-1"><span className="font-medium text-gray-800">Tél:</span> {currentEmploye.telephone}</p>
-                      <p className="text-sm text-gray-600 mb-1"><span className="font-medium text-gray-800">Email:</span> {currentEmploye.email}</p>
-                    </div>
-                  </div>
-
-                  {/* ⚡ LE BOUTON RETROUVÉ EST ICI ⚡ */}
-                  <div className="flex justify-end pt-4 border-t mt-6 print:hidden">
-                     <button className="px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900 shadow-sm text-sm font-medium flex items-center">
-                        <UserCircle className="w-4 h-4 mr-2" />
-                        Générer un compte de connexion
-                     </button>
-                  </div>
-
-                </div>
+      {/* TABLEAU RESPONSIVE (SCROLL HORIZONTAL SUR MOBILE) */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[800px]">
+            <thead>
+              <tr className="bg-gray-50 text-gray-500 text-sm border-b">
+                <th className="p-4 font-medium">Nom & Prénom</th>
+                <th className="p-4 font-medium">Fonction</th>
+                <th className="p-4 font-medium">Téléphone</th>
+                <th className="p-4 font-medium text-center">Accès Logiciel</th>
+                <th className="p-4 font-medium text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr><td colSpan={5} className="p-8 text-center text-gray-500">Chargement...</td></tr>
+              ) : employesFiltres.length === 0 ? (
+                <tr><td colSpan={5} className="p-8 text-center text-gray-500">Aucun employé trouvé.</td></tr>
               ) : (
-                <form onSubmit={handleSave} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div><label className="block text-sm font-medium">Nom *</label><input type="text" required value={currentEmploye.nom} onChange={e => setCurrentEmploye({...currentEmploye, nom: e.target.value})} className="mt-1 w-full border p-2 rounded-md" /></div>
-                    <div><label className="block text-sm font-medium">Prénom *</label><input type="text" required value={currentEmploye.prenom} onChange={e => setCurrentEmploye({...currentEmploye, prenom: e.target.value})} className="mt-1 w-full border p-2 rounded-md" /></div>
-                    <div><label className="block text-sm font-medium">Sexe *</label><select value={currentEmploye.sexe} onChange={e => setCurrentEmploye({...currentEmploye, sexe: e.target.value})} className="mt-1 w-full border p-2 rounded-md bg-white"><option value="M">Masculin</option><option value="F">Féminin</option></select></div>
-                    <div><label className="block text-sm font-medium">Date de naissance *</label><input type="date" required value={currentEmploye.date_naissance} onChange={e => setCurrentEmploye({...currentEmploye, date_naissance: e.target.value})} className="mt-1 w-full border p-2 rounded-md" /></div>
-                    <div><label className="block text-sm font-medium">Téléphone *</label><input type="text" required value={currentEmploye.telephone} onChange={e => setCurrentEmploye({...currentEmploye, telephone: e.target.value})} className="mt-1 w-full border p-2 rounded-md" /></div>
-                    <div><label className="block text-sm font-medium">Email (Unique)</label><input type="email" placeholder="Pour connexion future..." value={currentEmploye.email || ""} onChange={e => setCurrentEmploye({...currentEmploye, email: e.target.value})} className="mt-1 w-full border p-2 rounded-md" /></div>
-                    <div className="md:col-span-2"><label className="block text-sm font-medium">Adresse *</label><input type="text" required value={currentEmploye.adresse} onChange={e => setCurrentEmploye({...currentEmploye, adresse: e.target.value})} className="mt-1 w-full border p-2 rounded-md" /></div>
-                    <div><label className="block text-sm font-medium">Fonction *</label><select value={currentEmploye.fonction} onChange={e => setCurrentEmploye({...currentEmploye, fonction: e.target.value})} className="mt-1 w-full border p-2 rounded-md bg-white"><option value="Enseignant">Enseignant</option><option value="Directeur">Directeur</option><option value="Secrétaire">Secrétaire</option><option value="Surveillant">Surveillant</option></select></div>
-                    <div><label className="block text-sm font-medium">Date recrutement *</label><input type="date" required value={currentEmploye.date_recrutement} onChange={e => setCurrentEmploye({...currentEmploye, date_recrutement: e.target.value})} className="mt-1 w-full border p-2 rounded-md" /></div>
-                  </div>
-                  <div className="flex justify-end space-x-3 pt-6 border-t mt-6">
-                    <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 border rounded-md">Annuler</button>
-                    <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Sauvegarder</button>
-                  </div>
-                </form>
+                employesFiltres.map((emp) => (
+                  <tr key={emp.id} className="border-b hover:bg-gray-50 transition">
+                    <td className="p-4 font-bold text-gray-800">{emp.nom} {emp.prenom}</td>
+                    <td className="p-4 text-gray-600">
+                      <span className={`px-2 py-1 text-xs font-bold rounded-full ${emp.fonction === 'Directeur' ? 'bg-purple-100 text-purple-700' : emp.fonction === 'Secrétaire' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {emp.fonction}
+                      </span>
+                    </td>
+                    <td className="p-4 text-gray-600">{emp.telephone}</td>
+                    
+                    {/* GESTION DES ACCÈS */}
+                    <td className="p-4 text-center">
+                      {emp.utilisateur_id ? (
+                         <span className="inline-flex items-center text-green-600 text-sm font-bold bg-green-50 px-3 py-1 rounded-full border border-green-200">
+                           <CheckCircle size={14} className="mr-1" /> Compte Actif
+                         </span>
+                      ) : fonctionsElegibles.includes(emp.fonction) ? (
+                         <button 
+                            onClick={() => { setCurrentEmploye(emp); setIsAccessModalOpen(true); }}
+                            className="inline-flex items-center text-blue-600 text-sm font-bold bg-blue-50 px-3 py-1 rounded-full border border-blue-200 hover:bg-blue-100 transition"
+                          >
+                           <Key size={14} className="mr-1" /> Créer un accès
+                         </button>
+                      ) : (
+                         <span className="text-gray-400 text-xs flex items-center justify-center">
+                           <ShieldAlert size={14} className="mr-1" /> Non autorisé
+                         </span>
+                      )}
+                    </td>
+
+                    <td className="p-4 flex justify-end space-x-2">
+                      <button onClick={() => { setCurrentEmploye(emp); setModalMode("view"); setIsModalOpen(true); }} className="p-2 text-gray-400 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 rounded-lg"><Eye size={18} /></button>
+                      <button onClick={() => { setCurrentEmploye(emp); setModalMode("edit"); setIsModalOpen(true); }} className="p-2 text-gray-400 hover:text-yellow-600 bg-gray-50 hover:bg-yellow-50 rounded-lg"><Edit size={18} /></button>
+                      <button onClick={() => handleDelete(emp.id!)} className="p-2 text-gray-400 hover:text-red-600 bg-gray-50 hover:bg-red-50 rounded-lg"><Trash2 size={18} /></button>
+                    </td>
+                  </tr>
+                ))
               )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* --- MODALE : AJOUT / MODIFICATION EMPLOYÉ --- */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="p-5 border-b bg-gray-50 flex justify-between items-center sticky top-0 z-10">
+              <h2 className="text-xl font-bold text-gray-800">
+                {modalMode === "create" ? "Nouvel Employé" : modalMode === "edit" ? "Modifier Employé" : "Fiche Employé"}
+              </h2>
+              <button onClick={() => setIsModalOpen(false)} className="text-gray-500 hover:text-red-500 font-bold text-xl">✕</button>
             </div>
+
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><label className="block text-sm font-medium text-gray-700">Nom *</label><input type="text" required disabled={modalMode === "view"} value={currentEmploye.nom} onChange={e => setCurrentEmploye({...currentEmploye, nom: e.target.value})} className="mt-1 w-full border p-2 rounded-md bg-gray-50" /></div>
+                <div><label className="block text-sm font-medium text-gray-700">Prénom *</label><input type="text" required disabled={modalMode === "view"} value={currentEmploye.prenom} onChange={e => setCurrentEmploye({...currentEmploye, prenom: e.target.value})} className="mt-1 w-full border p-2 rounded-md bg-gray-50" /></div>
+                <div><label className="block text-sm font-medium text-gray-700">Sexe *</label><select disabled={modalMode === "view"} value={currentEmploye.sexe} onChange={e => setCurrentEmploye({...currentEmploye, sexe: e.target.value})} className="mt-1 w-full border p-2 rounded-md bg-gray-50"><option value="M">Masculin</option><option value="F">Féminin</option></select></div>
+                <div><label className="block text-sm font-medium text-gray-700">Date naissance *</label><input type="date" required disabled={modalMode === "view"} value={currentEmploye.date_naissance} onChange={e => setCurrentEmploye({...currentEmploye, date_naissance: e.target.value})} className="mt-1 w-full border p-2 rounded-md bg-gray-50" /></div>
+                <div><label className="block text-sm font-medium text-gray-700">Téléphone *</label><input type="text" required disabled={modalMode === "view"} value={currentEmploye.telephone} onChange={e => setCurrentEmploye({...currentEmploye, telephone: e.target.value})} className="mt-1 w-full border p-2 rounded-md bg-gray-50" /></div>
+                <div><label className="block text-sm font-medium text-gray-700">Email (Recommandé)</label><input type="email" disabled={modalMode === "view"} value={currentEmploye.email} onChange={e => setCurrentEmploye({...currentEmploye, email: e.target.value})} className="mt-1 w-full border p-2 rounded-md bg-gray-50" /></div>
+                <div className="md:col-span-2"><label className="block text-sm font-medium text-gray-700">Adresse *</label><input type="text" required disabled={modalMode === "view"} value={currentEmploye.adresse} onChange={e => setCurrentEmploye({...currentEmploye, adresse: e.target.value})} className="mt-1 w-full border p-2 rounded-md bg-gray-50" /></div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Fonction *</label>
+                  <select required disabled={modalMode === "view"} value={currentEmploye.fonction} onChange={e => setCurrentEmploye({...currentEmploye, fonction: e.target.value})} className="mt-1 w-full border p-2 rounded-md bg-gray-50">
+                    <option value="Enseignant">Enseignant</option>
+                    <option value="Directeur">Directeur</option>
+                    <option value="Secrétaire">Secrétaire</option>
+                    <option value="Surveillant">Surveillant</option>
+                    <option value="Agent Entretien">Agent d'entretien</option>
+                    <option value="Vigile">Vigile</option>
+                  </select>
+                </div>
+                <div><label className="block text-sm font-medium text-gray-700">Date recrutement *</label><input type="date" required disabled={modalMode === "view"} value={currentEmploye.date_recrutement} onChange={e => setCurrentEmploye({...currentEmploye, date_recrutement: e.target.value})} className="mt-1 w-full border p-2 rounded-md bg-gray-50" /></div>
+              </div>
+
+              {modalMode !== "view" && (
+                <div className="flex flex-col md:flex-row justify-end gap-3 pt-6 border-t mt-6">
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 border text-gray-600 rounded-lg hover:bg-gray-50 w-full md:w-auto">Annuler</button>
+                  <button type="submit" className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 w-full md:w-auto">Sauvegarder</button>
+                </div>
+              )}
+            </form>
           </div>
         </div>
       )}
+
+      {/* --- MODALE : CRÉER UN ACCÈS LOGICIEL --- */}
+      {isAccessModalOpen && (
+        <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
+             <div className="p-5 border-b bg-blue-50 flex justify-between items-center">
+              <h2 className="text-lg font-bold text-blue-800 flex items-center">
+                <Key className="mr-2" size={20}/> Générer un accès logiciel
+              </h2>
+              <button onClick={() => setIsAccessModalOpen(false)} className="text-blue-500 hover:text-blue-700 font-bold text-xl">✕</button>
+            </div>
+            <form onSubmit={handleCreateAccess} className="p-6 space-y-4">
+              <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-100 text-sm text-yellow-800 mb-4">
+                Vous êtes sur le point de créer un accès <b>{currentEmploye.fonction}</b> pour <b>{currentEmploye.prenom} {currentEmploye.nom}</b>.
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email de connexion</label>
+                <input type="email" required value={currentEmploye.email} onChange={(e) => setCurrentEmploye({...currentEmploye, email: e.target.value})} className="w-full border p-2 rounded-md bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500" placeholder="ex: jean.dupont@ecole.com"/>
+                <p className="text-xs text-gray-400 mt-1">Sera utilisé comme identifiant de connexion.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Mot de passe provisoire</label>
+                <input type="text" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full border p-2 rounded-md bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500" placeholder="ex: prof1234"/>
+                <p className="text-xs text-gray-400 mt-1">À communiquer à l'employé.</p>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t mt-4">
+                 <button type="button" onClick={() => setIsAccessModalOpen(false)} className="px-4 py-2 border text-gray-600 rounded-lg hover:bg-gray-50">Annuler</button>
+                 <button type="submit" className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700">Créer le compte</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

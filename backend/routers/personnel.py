@@ -52,3 +52,27 @@ def modifier_employe(employe_id: int, employe_update: schemas.EmployeUpdate, db:
     db.commit()
     db.refresh(employe)
     return employe
+
+@router.delete("/{employe_id}")
+def delete_employe(employe_id: int, db: Session = Depends(get_db)):
+    # 1. On cherche l'employé
+    employe = db.query(models.Employe).filter(models.Employe.id == employe_id).first()
+    if not employe:
+        raise HTTPException(status_code=404, detail="Employé introuvable")
+
+    # On sauvegarde l'ID de son compte utilisateur (s'il en a un)
+    utilisateur_id = employe.utilisateur_id
+
+    # 2. On supprime la fiche de l'employé
+    # (S'il était prof, ses cours dans le planning seront supprimés automatiquement grâce à notre CASCADE)
+    db.delete(employe)
+    db.commit()
+
+    # 3. SÉCURITÉ : On détruit son accès au logiciel s'il en avait un !
+    if utilisateur_id:
+        utilisateur = db.query(models.Utilisateur).filter(models.Utilisateur.id == utilisateur_id).first()
+        if utilisateur:
+            db.delete(utilisateur)
+            db.commit()
+
+    return {"message": "Employé et ses accès supprimés avec succès"}

@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import api from "../api/axios";
-import { BookOpen, Plus, Trash2 } from "lucide-react";
+import { BookOpen, Plus, Trash2, ShieldAlert } from "lucide-react";
 
 interface Matiere {
-  id: int;
+  id: number;
   nom: string;
   couleur: string;
 }
@@ -11,6 +11,10 @@ interface Matiere {
 export default function Matieres() {
   const [matieres, setMatieres] = useState<Matiere[]>([]);
   const [nouvelleMatiere, setNouvelleMatiere] = useState({ nom: "", couleur: "#3B82F6" });
+
+  // --- 🛡️ GESTION DES PERMISSIONS ---
+  const userRole = localStorage.getItem("role") || "Secrétaire";
+  const canDelete = userRole === "Directeur"; // Seul le directeur peut supprimer une matière
 
   useEffect(() => {
     fetchMatieres();
@@ -38,7 +42,8 @@ export default function Matieres() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm("Supprimer cette matière ?")) return;
+    if (!canDelete) return alert("Seul le Directeur peut supprimer une matière.");
+    if (!window.confirm("Supprimer cette matière ? Attention, cela impactera l'emploi du temps !")) return;
     try {
       await api.delete(`/matieres/${id}`);
       fetchMatieres();
@@ -60,7 +65,7 @@ export default function Matieres() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Formulaire d'ajout */}
+        {/* Formulaire d'ajout (Accessible Directeur + Secrétaire) */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-fit">
           <h3 className="font-bold text-gray-800 mb-4 flex items-center">
             <Plus size={18} className="mr-2 text-green-600"/> Nouvelle Matière
@@ -96,9 +101,15 @@ export default function Matieres() {
                     <div className="w-4 h-4 rounded-full mr-3 shadow-sm" style={{ backgroundColor: matiere.couleur }}></div>
                     <span className="font-medium text-gray-800">{matiere.nom}</span>
                   </div>
-                  <button onClick={() => handleDelete(matiere.id)} className="text-gray-400 hover:text-red-600 transition-colors p-1">
-                    <Trash2 size={16} />
-                  </button>
+                  
+                  {/* Le Caméléon : La Secrétaire voit un bouclier, le Directeur voit la corbeille */}
+                  {canDelete ? (
+                    <button onClick={() => handleDelete(matiere.id)} className="text-gray-400 hover:text-red-600 transition-colors p-1" title="Supprimer">
+                      <Trash2 size={16} />
+                    </button>
+                  ) : (
+                    <span className="text-gray-300" title="Seul le directeur peut supprimer"><ShieldAlert size={14} /></span>
+                  )}
                 </div>
               ))}
             </div>

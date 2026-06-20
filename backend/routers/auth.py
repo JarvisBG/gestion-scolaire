@@ -7,11 +7,13 @@ from database import get_db
 
 router = APIRouter(prefix="/auth", tags=["Authentification"])
 
-@router.post("/login", response_model=schemas.Token)
+# J'ai retiré 'response_model=schemas.Token' pour que FastAPI ne bloque pas notre champ "role"
+@router.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    # 1. On cherche l'utilisateur par son email
     user = db.query(models.Utilisateur).filter(models.Utilisateur.email == form_data.username).first()
     
-    # <-- On utilise user.mot_de_passe ici aussi
+    # 2. On vérifie le mot de passe
     if not user or not security.verify_password(form_data.password, user.mot_de_passe):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -19,11 +21,18 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
             headers={"WWW-Authenticate": "Bearer"},
         )
     
+    # 3. On vérifie si le compte est actif
     if not user.est_actif:
         raise HTTPException(status_code=400, detail="Ce compte a été désactivé")
 
+    # 4. On génère le passeport (Token JWT)
     access_token = security.create_access_token(
         data={"sub": user.email, "role": user.role}
     )
     
-    return {"access_token": access_token, "token_type": "bearer"}
+    # 5. On renvoie TOUT au frontend (y compris le rôle !)
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer", 
+        "role": user.role 
+    }

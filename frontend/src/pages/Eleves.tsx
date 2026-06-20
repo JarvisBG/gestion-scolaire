@@ -25,6 +25,7 @@ interface Eleve {
   adresse?: string;
   telephone_parents?: string;
   responsable_legal?: string;
+  scolarite_totale?: number;
 }
 
 export default function Eleves() {
@@ -34,12 +35,24 @@ export default function Eleves() {
   const [searchTerm, setSearchTerm] = useState("");
   
   const [isModalOpen, setIsModalOpen] = useState(false);
+  // Ajout d'une gestion du mode pour différencier l'édition de la simple vue
+  const [modalMode, setModalMode] = useState<"create" | "edit" | "view">("create");
   const [editingEleve, setEditingEleve] = useState<Partial<Eleve> | null>(null);
   const [etablissement, setEtablissement] = useState<any>(null);
   const [certificatEleve, setCertificatEleve] = useState<Eleve | null>(null);
   const [activeTab, setActiveTab] = useState<"infos" | "coordonnees" | "finances">("infos");
   const [paiementsEleve, setPaiementsEleve] = useState<any[]>([]);
   const [nouveauPaiement, setNouveauPaiement] = useState({ montant: "", motif: "Tranche 1", mode_paiement: "Espèces" });
+
+  // --- 🛡️ GESTION DES PERMISSIONS DU CAMÉLÉON ---
+  const userRole = localStorage.getItem("role") || "Enseignant";
+  const canEdit = userRole === "Directeur" || userRole === "Secrétaire"; // Créer/Modifier
+  const canDelete = userRole === "Directeur"; // Supprimer (Exclusif)
+  const canViewFinances = userRole === "Directeur" || userRole === "Secrétaire"; // Finances cachées aux enseignants
+  const canPrintCertificat = userRole === "Directeur" || userRole === "Secrétaire";
+  
+  // Le formulaire est bloqué si on n'a pas les droits, ou si on a cliqué sur "Voir" (l'œil)
+  const isFormDisabled = !canEdit || modalMode === "view";
 
   useEffect(() => {
     fetchData();
@@ -51,7 +64,7 @@ export default function Eleves() {
       const [elevesRes, classesRes, paramRes] = await Promise.all([
         api.get("/eleves/"),
         api.get("/classes/"),
-        api.get("/parametres/").catch(() => ({ data: null })) // On évite un crash si la table est vide
+        api.get("/parametres/").catch(() => ({ data: null }))
       ]);
       const fetchedClasses = classesRes.data;
       
@@ -81,45 +94,30 @@ export default function Eleves() {
     }
   };
 
-  const openModal = async (eleve: any = null) => {
-    // 1. On s'assure de toujours ouvrir sur le premier onglet
+  const openModal = async (eleve: any = null, mode: "create" | "edit" | "view" = "create") => {
     setActiveTab("infos"); 
+    setModalMode(mode); // On enregistre si c'est pour voir ou modifier
 
     if (eleve) {
-      // --- CAS A : MODIFICATION D'UN ÉLÈVE EXISTANT ---
       setEditingEleve(eleve);
-      
-      // On charge son historique financier depuis le backend
       try {
         const res = await api.get(`/paiements/eleve/${eleve.id}`);
         setPaiementsEleve(res.data);
       } catch (error) {
         console.error("Erreur de chargement des paiements", error);
-        setPaiementsEleve([]); // En cas d'erreur, on affiche une liste vide
+        setPaiementsEleve([]);
       }
     } else {
-      // --- CAS B : CRÉATION D'UN NOUVEL ÉLÈVE ---
-      // On vide tous les champs, y compris les nouveaux (scolarite_totale)
       setEditingEleve({
-        matricule: "", 
-        nom: "", 
-        prenom: "", 
-        sexe: "M", 
-        date_naissance: "", 
-        lieu_naissance: "", 
-        adresse: "", 
-        telephone_parents: "", 
-        responsable_legal: "",
-        statut_inscription: "En attente", 
-        observations: "", 
+        matricule: "", nom: "", prenom: "", sexe: "M", date_naissance: "", 
+        lieu_naissance: "", adresse: "", telephone_parents: "", responsable_legal: "",
+        statut_inscription: "En attente", observations: "", 
         classe_id: classes.length > 0 ? classes[0].id : 0,
-        scolarite_totale: 0 // <-- Très important
+        scolarite_totale: 0
       });
-      // Un nouvel élève n'a pas encore de paiements
       setPaiementsEleve([]);
     }
     
-    // On affiche enfin la fenêtre
     setIsModalOpen(true);
   };
 
@@ -127,30 +125,26 @@ export default function Eleves() {
     e.preventDefault();
     if (!editingEleve?.id) return;
 
-    // --- 🛡️ LE BOUCLIER ANTI-DOUBLON ---
-    // On cherche si un paiement avec le motif sélectionné existe déjà dans l'historique
     const paiementExistant = paiementsEleve.find(
       (p) => p.motif === nouveauPaiement.motif
     );
 
     if (paiementExistant) {
       alert(`⚠️ Attention : Le paiement pour "${nouveauPaiement.motif}" a déjà été enregistré pour cet élève !`);
-      return; // On stoppe tout, la requête ne part pas vers le backend
+      return; 
     }
-    // ------------------------------------
 
     try {
       await api.post("/paiements/", {
         ...nouveauPaiement,
         montant: parseFloat(nouveauPaiement.montant),
-        date_paiement: new Date().toISOString().split('T')[0], // Date du jour
+        date_paiement: new Date().toISOString().split('T')[0],
         eleve_id: editingEleve.id
       });
       
-      // On rafraîchit la liste des paiements
       const res = await api.get(`/paiements/eleve/${editingEleve.id}`);
       setPaiementsEleve(res.data);
-      setNouveauPaiement({ montant: "", motif: "Tranche 1", mode_paiement: "Espèces" }); // Reset
+      setNouveauPaiement({ montant: "", motif: "Tranche 1", mode_paiement: "Espèces" });
       alert("✅ Paiement enregistré avec succès !");
     } catch (error) {
       console.error("Erreur d'encaissement", error);
@@ -165,6 +159,8 @@ export default function Eleves() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEdit) return alert("Permissions insuffisantes."); // Sécurité supplémentaire
+
     try {
       const payload = { ...editingEleve };
       delete payload.classe;
@@ -190,6 +186,7 @@ export default function Eleves() {
   };
 
   const handleDelete = async (id: number) => {
+    if (!canDelete) return alert("Seul le Directeur est autorisé à supprimer un élève.");
     if (window.confirm("Êtes-vous sûr de vouloir retirer cet élève ?")) {
       try {
         await api.delete(`/eleves/${id}`);
@@ -231,10 +228,8 @@ export default function Eleves() {
   return (
     <div className="p-6">
       
-      {/* En-tête : Câché à l'impression */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 print:hidden">
         <div>
-          
           <h2 className="text-3xl font-bold text-gray-800 flex items-center">
             <GraduationCap className="w-8 h-8 mr-3 text-blue-600" />
             Gestion des Elèves
@@ -245,13 +240,15 @@ export default function Eleves() {
           <button onClick={() => window.print()} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg flex items-center font-medium transition-colors">
             <Download size={20} className="mr-2" /> Exporter PDF
           </button>
-          <button onClick={() => openModal()} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center shadow">
-            <Plus size={20} className="mr-2" /> Inscrire un Élève
-          </button>
+          {/* Le bouton d'ajout est masqué pour l'enseignant */}
+          {canEdit && (
+            <button onClick={() => openModal(null, "create")} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center shadow">
+              <Plus size={20} className="mr-2" /> Inscrire un Élève
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Titre spécifique pour le document PDF imprimé */}
       <div className="hidden print:block mb-6">
         <h1 className="text-2xl font-bold">Liste des Élèves - Année 2025/2026</h1>
       </div>
@@ -298,16 +295,32 @@ export default function Eleves() {
                         <td className="px-6 py-4 font-bold text-gray-800">{eleve.nom} {eleve.prenom}</td>
                         <td className="px-6 py-4 text-gray-600">{eleve.classe?.nom || "Non assignée"}</td>
                         <td className="px-6 py-4">{getStatusBadge(eleve.statut_inscription)}</td>
-                        <td className="px-6 py-4 flex justify-end gap-2 print:hidden"></td>
                         <td className="px-6 py-4 flex justify-end gap-2 print:hidden">
-                          <button onClick={() => setCertificatEleve(eleve)} className="p-2 text-purple-600 hover:bg-purple-100 rounded-lg transition-colors" title="Générer Certificat">
-                            <Printer size={18} /></button>
-                          <button onClick={() => openModal(eleve)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors" title="Détails / Gérer">
+                          {/* L'icône Impression (Directeur/Secrétaire) */}
+                          {canPrintCertificat && (
+                            <button onClick={() => setCertificatEleve(eleve)} className="p-2 text-purple-600 hover:bg-purple-100 rounded-lg transition-colors" title="Générer Certificat">
+                              <Printer size={18} />
+                            </button>
+                          )}
+                          
+                          {/* L'icône Détails (Pour tout le monde) */}
+                          <button onClick={() => openModal(eleve, "view")} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors" title="Consulter la fiche">
                             <Eye size={18} />
                           </button>
-                          <button onClick={() => handleDelete(eleve.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors" title="Retirer">
-                            <Trash2 size={18} />
-                          </button>
+
+                          {/* L'icône Édition (Directeur/Secrétaire) */}
+                          {canEdit && (
+                            <button onClick={() => openModal(eleve, "edit")} className="p-2 text-yellow-600 hover:bg-yellow-100 rounded-lg transition-colors" title="Modifier">
+                              <Edit size={18} />
+                            </button>
+                          )}
+
+                          {/* L'icône Corbeille (Directeur uniquement) */}
+                          {canDelete && (
+                            <button onClick={() => handleDelete(eleve.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors" title="Retirer">
+                              <Trash2 size={18} />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -325,7 +338,6 @@ export default function Eleves() {
         </div>
       )}
 
-      {/* MODALE : Cachée à l'impression */}
       {/* MODALE AVEC 3 ONGLETS */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 print:hidden">
@@ -334,13 +346,14 @@ export default function Eleves() {
             <div className="p-6 border-b flex justify-between items-center bg-gray-50">
               <h2 className="text-xl font-bold text-gray-800">
                 {editingEleve?.id ? `Dossier de ${editingEleve.nom}` : "Nouvelle Inscription"}
+                {modalMode === "view" && <span className="ml-3 text-sm bg-gray-200 text-gray-600 px-2 py-1 rounded">Lecture seule</span>}
               </h2>
               <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
                 <X size={24} />
               </button>
             </div>
 
-            {/* BARRE DES 3 ONGLETS */}
+            {/* BARRE DES ONGLETS */}
             <div className="flex border-b bg-white px-6 pt-2 overflow-x-auto">
               <button 
                 type="button"
@@ -356,20 +369,23 @@ export default function Eleves() {
               >
                 👨‍👩‍👧 Coordonnées & Statut
               </button>
-              <button 
-                type="button"
-                onClick={() => setActiveTab("finances")} 
-                disabled={!editingEleve?.id} 
-                className={`px-6 py-4 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${!editingEleve?.id ? "opacity-50 cursor-not-allowed" : activeTab === "finances" ? "border-green-600 text-green-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
-              >
-                💰 Finances & Paiements
-              </button>
+              
+              {/* L'onglet Finances est caché aux enseignants */}
+              {canViewFinances && (
+                <button 
+                  type="button"
+                  onClick={() => setActiveTab("finances")} 
+                  disabled={!editingEleve?.id} 
+                  className={`px-6 py-4 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${!editingEleve?.id ? "opacity-50 cursor-not-allowed" : activeTab === "finances" ? "border-green-600 text-green-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
+                >
+                  💰 Finances & Paiements
+                </button>
+              )}
             </div>
 
             {/* CONTENU DYNAMIQUE DES ONGLETS */}
             <div className="overflow-y-auto flex-1 bg-white">
               
-              {/* Le formulaire global englobe l'onglet 1 et l'onglet 2 pour qu'on puisse sauvegarder d'un coup */}
               <form id="eleve-form" onSubmit={handleSave} className={activeTab === "finances" ? "hidden" : "p-6"}>
                 
                 {/* ONGLET 1 : IDENTITÉ */}
@@ -377,12 +393,12 @@ export default function Eleves() {
                   <div className="grid grid-cols-2 gap-4 mb-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Matricule *</label>
-                      <input type="text" required className="w-full p-2 border rounded-lg"
+                      <input type="text" required disabled={isFormDisabled} className="w-full p-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
                         value={editingEleve?.matricule || ""} onChange={e => setEditingEleve({...editingEleve, matricule: e.target.value})} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Classe *</label>
-                      <select className="w-full p-2 border rounded-lg bg-white"
+                      <select disabled={isFormDisabled} className="w-full p-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
                         value={editingEleve?.classe_id || ""} onChange={e => setEditingEleve({...editingEleve, classe_id: Number(e.target.value)})}>
                         {classes.map(c => (
                           <option key={c.id} value={c.id}>{c.niveau} - {c.nom}</option>
@@ -391,17 +407,17 @@ export default function Eleves() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Nom *</label>
-                      <input type="text" required className="w-full p-2 border rounded-lg"
+                      <input type="text" required disabled={isFormDisabled} className="w-full p-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
                         value={editingEleve?.nom || ""} onChange={e => setEditingEleve({...editingEleve, nom: e.target.value})} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Prénom *</label>
-                      <input type="text" required className="w-full p-2 border rounded-lg"
+                      <input type="text" required disabled={isFormDisabled} className="w-full p-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
                         value={editingEleve?.prenom || ""} onChange={e => setEditingEleve({...editingEleve, prenom: e.target.value})} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Sexe</label>
-                      <select className="w-full p-2 border rounded-lg bg-white"
+                      <select disabled={isFormDisabled} className="w-full p-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
                         value={editingEleve?.sexe || "M"} onChange={e => setEditingEleve({...editingEleve, sexe: e.target.value})}>
                         <option value="M">Masculin</option>
                         <option value="F">Féminin</option>
@@ -409,12 +425,12 @@ export default function Eleves() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Date de naissance</label>
-                      <input type="date" className="w-full p-2 border rounded-lg"
+                      <input type="date" disabled={isFormDisabled} className="w-full p-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
                         value={editingEleve?.date_naissance || ""} onChange={e => setEditingEleve({...editingEleve, date_naissance: e.target.value})} />
                     </div>
                     <div className="col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Lieu de naissance</label>
-                      <input type="text" placeholder="Ex: Yaoundé" className="w-full p-2 border rounded-lg"
+                      <input type="text" placeholder="Ex: Yaoundé" disabled={isFormDisabled} className="w-full p-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
                         value={editingEleve?.lieu_naissance || ""} onChange={e => setEditingEleve({...editingEleve, lieu_naissance: e.target.value})} />
                     </div>
                   </div>
@@ -425,35 +441,36 @@ export default function Eleves() {
                   <div className="grid grid-cols-2 gap-4 mb-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Responsable légal</label>
-                      <input type="text" placeholder="Ex: Jean Dupont (Père)" className="w-full p-2 border rounded-lg"
+                      <input type="text" placeholder="Ex: Jean Dupont (Père)" disabled={isFormDisabled} className="w-full p-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
                         value={editingEleve?.responsable_legal || ""} onChange={e => setEditingEleve({...editingEleve, responsable_legal: e.target.value})} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone Parents</label>
-                      <input type="text" placeholder="Ex: 6XX XX XX XX" className="w-full p-2 border rounded-lg"
+                      <input type="text" placeholder="Ex: 6XX XX XX XX" disabled={isFormDisabled} className="w-full p-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
                         value={editingEleve?.telephone_parents || ""} onChange={e => setEditingEleve({...editingEleve, telephone_parents: e.target.value})} />
                     </div>
                     <div className="col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Adresse / Quartier</label>
-                      <input type="text" placeholder="Ex: Biyem-Assi, Yaoundé" className="w-full p-2 border rounded-lg"
+                      <input type="text" placeholder="Ex: Biyem-Assi, Yaoundé" disabled={isFormDisabled} className="w-full p-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
                         value={editingEleve?.adresse || ""} onChange={e => setEditingEleve({...editingEleve, adresse: e.target.value})} />
                     </div>
                   </div>
 
-                  {/* Zone de tarification bien mise en évidence */}
-                  <div className="mb-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                    <label className="block text-sm font-bold text-yellow-800 mb-1 flex items-center">
-                      <DollarSign size={18} className="mr-1"/> Scolarité totale exigée (FCFA)
-                    </label>
-                    <input type="number" className="w-full p-2 border border-yellow-300 rounded-lg bg-white text-lg font-medium"
-                      value={editingEleve?.scolarite_totale || ""} onChange={e => setEditingEleve({...editingEleve, scolarite_totale: Number(e.target.value)})} 
-                      placeholder="Ex: 150000" />
-                  </div>
+                  {canViewFinances && (
+                    <div className="mb-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                      <label className="block text-sm font-bold text-yellow-800 mb-1 flex items-center">
+                        <DollarSign size={18} className="mr-1"/> Scolarité totale exigée (FCFA)
+                      </label>
+                      <input type="number" disabled={isFormDisabled} className="w-full p-2 border border-yellow-300 rounded-lg bg-white text-lg font-medium disabled:bg-gray-100 disabled:text-gray-500"
+                        value={editingEleve?.scolarite_totale || ""} onChange={e => setEditingEleve({...editingEleve, scolarite_totale: Number(e.target.value)})} 
+                        placeholder="Ex: 150000" />
+                    </div>
+                  )}
 
                   <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-100">
                     <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-700 mb-1">État du dossier</label>
-                      <select className="w-full p-2 border rounded-lg bg-white"
+                      <select disabled={isFormDisabled} className="w-full p-2 border rounded-lg bg-white disabled:bg-gray-100 disabled:text-gray-500"
                         value={editingEleve?.statut_inscription || "En attente"} 
                         onChange={e => setEditingEleve({...editingEleve, statut_inscription: e.target.value})}>
                         <option value="En attente">🔴 En attente (Pas encore fait / À traiter)</option>
@@ -463,24 +480,20 @@ export default function Eleves() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Observations / Remarques</label>
-                      <textarea 
-                        rows={3}
+                      <textarea rows={3} disabled={isFormDisabled}
                         placeholder="Ex: Acompte payé, manque l'acte de naissance..."
-                        className="w-full p-2 border rounded-lg bg-white resize-none"
+                        className="w-full p-2 border rounded-lg bg-white resize-none disabled:bg-gray-100 disabled:text-gray-500"
                         value={editingEleve?.observations || ""} 
                         onChange={e => setEditingEleve({...editingEleve, observations: e.target.value})} 
                       />
                     </div>
                   </div>
                 </div>
-
               </form>
 
-              {/* ONGLET 3 : FINANCES (Affiché seulement si on est sur l'onglet finances) */}
-              {activeTab === "finances" && (
+              {/* ONGLET 3 : FINANCES (Sécurisé) */}
+              {activeTab === "finances" && canViewFinances && (
                 <div className="p-6">
-                  
-                  {/* Résumé Financier */}
                   <div className="grid grid-cols-3 gap-4 mb-8">
                     <div className="bg-gray-50 p-4 rounded-xl border">
                       <p className="text-sm text-gray-500 font-medium">Scolarité Totale</p>
@@ -501,17 +514,16 @@ export default function Eleves() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Colonne d'Encaissement */}
                     <div className="bg-white p-5 rounded-xl border shadow-sm">
                       <h3 className="font-bold text-gray-800 mb-4 flex items-center"><Wallet className="mr-2 text-green-600" size={18} /> Nouvel Encaissement</h3>
                       <form onSubmit={handleEncaissement} className="space-y-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Montant (FCFA) *</label>
-                          <input type="number" required value={nouveauPaiement.montant} onChange={e => setNouveauPaiement({...nouveauPaiement, montant: e.target.value})} className="w-full p-2 border rounded-lg" />
+                          <input type="number" required disabled={!canEdit} value={nouveauPaiement.montant} onChange={e => setNouveauPaiement({...nouveauPaiement, montant: e.target.value})} className="w-full p-2 border rounded-lg disabled:bg-gray-100" />
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Motif *</label>
-                          <select value={nouveauPaiement.motif} onChange={e => setNouveauPaiement({...nouveauPaiement, motif: e.target.value})} className="w-full p-2 border rounded-lg bg-white">
+                          <select disabled={!canEdit} value={nouveauPaiement.motif} onChange={e => setNouveauPaiement({...nouveauPaiement, motif: e.target.value})} className="w-full p-2 border rounded-lg bg-white disabled:bg-gray-100">
                             <option value="Frais d'inscription">Frais d'inscription</option>
                             <option value="Tranche 1">Tranche 1</option>
                             <option value="Tranche 2">Tranche 2</option>
@@ -521,20 +533,21 @@ export default function Eleves() {
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Mode de paiement *</label>
-                          <select value={nouveauPaiement.mode_paiement} onChange={e => setNouveauPaiement({...nouveauPaiement, mode_paiement: e.target.value})} className="w-full p-2 border rounded-lg bg-white">
+                          <select disabled={!canEdit} value={nouveauPaiement.mode_paiement} onChange={e => setNouveauPaiement({...nouveauPaiement, mode_paiement: e.target.value})} className="w-full p-2 border rounded-lg bg-white disabled:bg-gray-100">
                             <option value="Espèces">Espèces</option>
                             <option value="Mobile Money">Mobile Money</option>
                             <option value="Orange Money">Orange Money</option>
                             <option value="Virement Bancaire">Virement Bancaire</option>
                           </select>
                         </div>
-                        <button type="submit" className="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors mt-2">
-                          Valider le paiement
-                        </button>
+                        {canEdit && (
+                          <button type="submit" className="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors mt-2">
+                            Valider le paiement
+                          </button>
+                        )}
                       </form>
                     </div>
 
-                    {/* Historique des paiements */}
                     <div className="md:col-span-2 bg-white p-5 rounded-xl border shadow-sm flex flex-col">
                       <h3 className="font-bold text-gray-800 mb-4 flex items-center"><CreditCard className="mr-2 text-blue-600" size={18} /> Historique des reçus</h3>
                       {paiementsEleve.length === 0 ? (
@@ -556,16 +569,13 @@ export default function Eleves() {
                   </div>
                 </div>
               )}
-
             </div>
 
-            {/* FOOTER DE LA MODALE */}
             <div className="p-4 border-t bg-gray-50 flex justify-end gap-3">
               <button type="button" onClick={closeModal} className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg font-medium transition-colors">
                 Fermer
               </button>
-              {/* Le bouton de sauvegarde n'apparaît pas sur l'onglet finances car les paiements s'enregistrent instantanément via leur propre bouton */}
-              {activeTab !== "finances" && (
+              {activeTab !== "finances" && modalMode !== "view" && canEdit && (
                 <button type="submit" form="eleve-form" className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow transition-colors">
                   Sauvegarder la fiche
                 </button>
@@ -575,8 +585,8 @@ export default function Eleves() {
           </div>
         </div>
       )}
-      {/* MODALE : Certificat de Scolarité */}
-      {certificatEleve && (
+
+      {certificatEleve && canPrintCertificat && (
         <CertificatScolarite
           eleve={certificatEleve}
           etablissement={etablissement}
