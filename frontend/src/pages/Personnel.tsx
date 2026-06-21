@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import api from "../api/axios"; 
-import { Users, Search, Plus, Edit, Eye, Trash2, Key, CheckCircle, ShieldAlert } from "lucide-react";
+import { Users, Search, Plus, Edit, Eye, Trash2, Key, CheckCircle, ShieldAlert, Power, XCircle } from "lucide-react";
 
 interface Employe {
   id?: number; 
@@ -71,7 +71,7 @@ export default function Personnel() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm("Êtes-vous sûr de vouloir supprimer cet employé ?")) return;
+    if (!window.confirm("Êtes-vous sûr de vouloir supprimer définitivement cet employé ? Il est souvent préférable de simplement le suspendre.")) return;
     try {
       await api.delete(`/personnel/${id}`);
       fetchEmployes();
@@ -80,7 +80,31 @@ export default function Personnel() {
     }
   };
 
-  // --- NOUVEAU : CRÉATION DU COMPTE UTILISATEUR ---
+  // --- 💡 NOUVEAU : DÉSACTIVER UN COMPTE SANS LE SUPPRIMER ---
+  const handleToggleStatus = async (emp: Employe) => {
+    const actionText = emp.statut === "Actif" ? "suspendre" : "réactiver";
+    
+    if (window.confirm(`Voulez-vous vraiment ${actionText} le compte de ${emp.prenom} ${emp.nom} ?`)) {
+      try {
+        const nouveauStatut = emp.statut === "Actif" ? "Suspendu" : "Actif";
+        
+        // On met à jour le statut de l'employé
+        await api.put(`/personnel/${emp.id}`, { ...emp, statut: nouveauStatut });
+        
+        // Si le backend nécessite aussi de couper l'utilisateur lié :
+        if (emp.utilisateur_id) {
+            await api.put(`/utilisateurs/${emp.utilisateur_id}`, { est_actif: nouveauStatut === "Actif" }).catch(() => console.log("Mise à jour utilisateur non requise ou gérée par le backend"));
+        }
+
+        fetchEmployes();
+      } catch (error) {
+        console.error("Erreur lors de la modification du statut", error);
+        alert("❌ Impossible de modifier le statut.");
+      }
+    }
+  };
+
+  // --- CRÉATION DU COMPTE UTILISATEUR ---
   const handleCreateAccess = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentEmploye.email || !password) {
@@ -95,7 +119,7 @@ export default function Personnel() {
         nom: currentEmploye.nom,
         prenom: currentEmploye.prenom,
         mot_de_passe: password,
-        role: currentEmploye.fonction // Le rôle correspond à sa fonction (Directeur, Secrétaire, Enseignant)
+        role: currentEmploye.fonction // Le rôle correspond à sa fonction
       };
       
       const userRes = await api.post("/utilisateurs/", userPayload);
@@ -106,7 +130,9 @@ export default function Personnel() {
         utilisateur_id: userRes.data.id
       });
 
-      alert(`✅ Accès généré avec succès pour ${currentEmploye.prenom} !`);
+      // 💡 L'ASTUCE EST ICI : Afficher les identifiants en clair à la création
+      alert(`✅ COMPTE CRÉÉ AVEC SUCCÈS !\n\nVoici les identifiants à transmettre à ${currentEmploye.prenom} :\n📧 Email : ${currentEmploye.email}\n🔑 Mot de passe : ${password}\n\n(⚠️ Notez ce mot de passe, il ne sera plus jamais visible pour des raisons de sécurité !)`);
+      
       setIsAccessModalOpen(false);
       setPassword("");
       fetchEmployes();
@@ -181,7 +207,8 @@ export default function Personnel() {
                 <tr><td colSpan={5} className="p-8 text-center text-gray-500">Aucun employé trouvé.</td></tr>
               ) : (
                 employesFiltres.map((emp) => (
-                  <tr key={emp.id} className="border-b hover:bg-gray-50 transition">
+                  // Ligne rouge pâle si l'employé est suspendu
+                  <tr key={emp.id} className={`border-b transition ${emp.statut === 'Suspendu' ? 'bg-red-50/40' : 'hover:bg-gray-50'}`}>
                     <td className="p-4 font-bold text-gray-800">{emp.nom} {emp.prenom}</td>
                     <td className="p-4 text-gray-600">
                       <span className={`px-2 py-1 text-xs font-bold rounded-full ${emp.fonction === 'Directeur' ? 'bg-purple-100 text-purple-700' : emp.fonction === 'Secrétaire' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'}`}>
@@ -190,9 +217,13 @@ export default function Personnel() {
                     </td>
                     <td className="p-4 text-gray-600">{emp.telephone}</td>
                     
-                    {/* GESTION DES ACCÈS */}
+                    {/* GESTION DES ACCÈS ET STATUT */}
                     <td className="p-4 text-center">
-                      {emp.utilisateur_id ? (
+                      {emp.statut === "Suspendu" ? (
+                         <span className="inline-flex items-center text-red-600 text-sm font-bold bg-red-50 px-3 py-1 rounded-full border border-red-200">
+                           <XCircle size={14} className="mr-1" /> Suspendu
+                         </span>
+                      ) : emp.utilisateur_id ? (
                          <span className="inline-flex items-center text-green-600 text-sm font-bold bg-green-50 px-3 py-1 rounded-full border border-green-200">
                            <CheckCircle size={14} className="mr-1" /> Compte Actif
                          </span>
@@ -210,10 +241,21 @@ export default function Personnel() {
                       )}
                     </td>
 
+                    {/* ACTIONS */}
                     <td className="p-4 flex justify-end space-x-2">
-                      <button onClick={() => { setCurrentEmploye(emp); setModalMode("view"); setIsModalOpen(true); }} className="p-2 text-gray-400 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 rounded-lg"><Eye size={18} /></button>
-                      <button onClick={() => { setCurrentEmploye(emp); setModalMode("edit"); setIsModalOpen(true); }} className="p-2 text-gray-400 hover:text-yellow-600 bg-gray-50 hover:bg-yellow-50 rounded-lg"><Edit size={18} /></button>
-                      <button onClick={() => handleDelete(emp.id!)} className="p-2 text-gray-400 hover:text-red-600 bg-gray-50 hover:bg-red-50 rounded-lg"><Trash2 size={18} /></button>
+                      <button onClick={() => { setCurrentEmploye(emp); setModalMode("view"); setIsModalOpen(true); }} className="p-2 text-gray-400 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 rounded-lg" title="Voir la fiche"><Eye size={18} /></button>
+                      
+                      {/* BOUTON POWER (Désactiver / Activer) */}
+                      <button 
+                        onClick={() => handleToggleStatus(emp)} 
+                        className={`p-2 rounded-lg transition-colors bg-gray-50 ${emp.statut === 'Actif' ? 'text-orange-500 hover:bg-orange-100' : 'text-green-600 hover:bg-green-100'}`} 
+                        title={emp.statut === 'Actif' ? "Suspendre l'employé" : "Réactiver l'employé"}
+                      >
+                        <Power size={18} />
+                      </button>
+
+                      <button onClick={() => { setCurrentEmploye(emp); setModalMode("edit"); setIsModalOpen(true); }} className="p-2 text-gray-400 hover:text-yellow-600 bg-gray-50 hover:bg-yellow-50 rounded-lg" title="Modifier"><Edit size={18} /></button>
+                      <button onClick={() => handleDelete(emp.id!)} className="p-2 text-gray-400 hover:text-red-600 bg-gray-50 hover:bg-red-50 rounded-lg" title="Supprimer"><Trash2 size={18} /></button>
                     </td>
                   </tr>
                 ))
