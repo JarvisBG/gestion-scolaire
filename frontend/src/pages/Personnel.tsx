@@ -44,7 +44,7 @@ export default function Personnel() {
   const fetchEmployes = async () => {
     setIsLoading(true);
     try {
-      const response = await api.get("/personnel/");
+      const response = await api.get("/personnel");
       setEmployes(response.data);
     } catch (error) {
       console.error("Erreur de chargement du personnel", error);
@@ -57,7 +57,7 @@ export default function Personnel() {
     e.preventDefault();
     try {
       if (modalMode === "create") {
-        await api.post("/personnel/", currentEmploye);
+        await api.post("/personnel", currentEmploye);
         alert("✅ Employé ajouté avec succès !");
       } else if (modalMode === "edit") {
         await api.put(`/personnel/${currentEmploye.id}`, currentEmploye);
@@ -81,7 +81,7 @@ export default function Personnel() {
     }
   };
 
-  // --- NOUVEAU : DÉSACTIVER UN COMPTE CORRECTEMENT ---
+  // --- DÉSACTIVER UN COMPTE CORRECTEMENT ---
   const handleToggleStatus = async (emp: Employe) => {
     if (!emp.utilisateur_id) return alert("Cet employé n'a pas de compte logiciel !");
     
@@ -92,6 +92,7 @@ export default function Personnel() {
         const nouveauStatut = emp.statut === "Actif" ? "Suspendu" : "Actif";
         
         // 1. On coupe/active l'utilisateur dans la table de sécurité via la nouvelle route PATCH
+        // (Attention à ne pas mettre de slash final ici non plus !)
         await api.patch(`/utilisateurs/${emp.utilisateur_id}/statut`, { est_actif: nouveauStatut === "Actif" });
         
         // 2. On met à jour l'affichage de l'employé
@@ -101,12 +102,12 @@ export default function Personnel() {
         alert(`✅ Compte ${nouveauStatut} avec succès.`);
       } catch (error) {
         console.error("Erreur lors de la modification du statut", error);
-        alert("❌ Impossible de modifier le statut.");
+        alert("❌ Impossible de modifier le statut. Assurez-vous que le backend est à jour.");
       }
     }
   };
 
-  // --- NOUVEAU : RÉINITIALISER LE MOT DE PASSE ---
+  // --- RÉINITIALISER LE MOT DE PASSE ---
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentEmploye.utilisateur_id || !password) return;
@@ -140,7 +141,8 @@ export default function Personnel() {
         role: currentEmploye.fonction
       };
       
-      const userRes = await api.post("/utilisateurs/", userPayload);
+      // Pas de slash à la fin pour éviter les redirections 307
+      const userRes = await api.post("/utilisateurs", userPayload);
       
       await api.put(`/personnel/${currentEmploye.id}`, {
         ...currentEmploye,
@@ -168,7 +170,6 @@ export default function Personnel() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-2 md:px-0">
       
-      {/* EN-TÊTE RESPONSIVE */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center">
@@ -200,7 +201,6 @@ export default function Personnel() {
         />
       </div>
 
-      {/* TABLEAU */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[900px]">
@@ -255,7 +255,6 @@ export default function Personnel() {
                     <td className="p-4 flex justify-end space-x-1 md:space-x-2">
                       <button onClick={() => { setCurrentEmploye(emp); setModalMode("view"); setIsModalOpen(true); }} className="p-2 text-gray-400 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 rounded-lg" title="Voir la fiche"><Eye size={18} /></button>
                       
-                      {/* GESTION COMPTE (Si l'employé a un utilisateur) */}
                       {emp.utilisateur_id && (
                         <>
                           <button 
@@ -287,7 +286,7 @@ export default function Personnel() {
         </div>
       </div>
 
-      {/* MODALE AJOUT/MODIF (Identique à avant) */}
+      {/* MODALES */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50 p-4">
           <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -297,7 +296,6 @@ export default function Personnel() {
               </h2>
               <button onClick={() => setIsModalOpen(false)} className="text-gray-500 hover:text-red-500 font-bold text-xl">✕</button>
             </div>
-
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div><label className="block text-sm font-medium text-gray-700">Nom *</label><input type="text" required disabled={modalMode === "view"} value={currentEmploye.nom} onChange={e => setCurrentEmploye({...currentEmploye, nom: e.target.value})} className="mt-1 w-full border p-2 rounded-md bg-gray-50" /></div>
@@ -320,7 +318,6 @@ export default function Personnel() {
                 </div>
                 <div><label className="block text-sm font-medium text-gray-700">Date recrutement *</label><input type="date" required disabled={modalMode === "view"} value={currentEmploye.date_recrutement} onChange={e => setCurrentEmploye({...currentEmploye, date_recrutement: e.target.value})} className="mt-1 w-full border p-2 rounded-md bg-gray-50" /></div>
               </div>
-
               {modalMode !== "view" && (
                 <div className="flex flex-col md:flex-row justify-end gap-3 pt-6 border-t mt-6">
                   <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 border text-gray-600 rounded-lg hover:bg-gray-50 w-full md:w-auto">Annuler</button>
@@ -332,7 +329,6 @@ export default function Personnel() {
         </div>
       )}
 
-      {/* MODALE : CRÉER UN ACCÈS LOGICIEL */}
       {isAccessModalOpen && (
         <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50 p-4">
           <div className="bg-white rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
@@ -359,7 +355,6 @@ export default function Personnel() {
         </div>
       )}
 
-      {/* MODALE : RÉINITIALISER MOT DE PASSE */}
       {isResetModalOpen && (
         <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50 p-4">
           <div className="bg-white rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
