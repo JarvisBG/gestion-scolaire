@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import api from "../api/axios"; // 👈 On importe NOTRE configuration Axios, pas le axios par défaut !
 
 export default function Login() {
   const navigate = useNavigate();
@@ -19,7 +19,9 @@ export default function Login() {
       formData.append("username", username);
       formData.append("password", password);
 
-      const response = await axios.post("http://localhost:8000/auth/login", formData, {
+      // 👈 On utilise "api.post" et juste la route "/auth/login". 
+      // L'adresse de base (Vercel) sera ajoutée automatiquement !
+      const response = await api.post("/auth/login", formData, {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
       });
 
