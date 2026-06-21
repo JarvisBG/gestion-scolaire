@@ -46,10 +46,9 @@ export default function Eleves() {
   // --- 🛡️ GESTION DES PERMISSIONS DU CAMÉLÉON ---
   const userRole = localStorage.getItem("role") || "Enseignant";
   const canEdit = userRole === "Directeur" || userRole === "Secrétaire"; 
-  const canDelete = userRole === "Directeur"; 
+  const canDelete = userRole === "Directeur";
   const canViewFinances = userRole === "Directeur" || userRole === "Secrétaire"; 
   const canPrintCertificat = userRole === "Directeur" || userRole === "Secrétaire";
-  
   const isFormDisabled = !canEdit || modalMode === "view";
 
   useEffect(() => {
@@ -64,18 +63,19 @@ export default function Eleves() {
         api.get("/classes/"),
         api.get("/parametres/").catch(() => ({ data: null }))
       ]);
+
       const fetchedClasses = classesRes.data;
       
       const elevesAvecClasses = elevesRes.data.map((eleve: Eleve) => ({
         ...eleve,
         classe: fetchedClasses.find((c: Classe) => c.id === eleve.classe_id)
       }));
+
       elevesAvecClasses.sort((a: Eleve, b: Eleve) => a.nom.localeCompare(b.nom));
 
       setClasses(fetchedClasses);
       setEleves(elevesAvecClasses);
       if (paramRes.data) setEtablissement(paramRes.data);
-      
     } catch (error) {
       console.error("Erreur lors de la récupération des données", error);
     } finally {
@@ -85,15 +85,15 @@ export default function Eleves() {
 
   const getStatusBadge = (statut: string) => {
     switch (statut) {
-      case "Inscrit": return <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">🟢 Inscrit</span>;
-      case "Dossier Incomplet": return <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-semibold">🟠 Incomplet</span>;
+      case "Inscrit": return <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold whitespace-nowrap">🟢 Inscrit</span>;
+      case "Dossier Incomplet": return <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-semibold whitespace-nowrap">🟠 Incomplet</span>;
       case "En attente":
-      default: return <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-semibold">🔴 En attente</span>;
+      default: return <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-semibold whitespace-nowrap">🔴 En attente</span>;
     }
   };
 
   const openModal = async (eleve: any = null, mode: "create" | "edit" | "view" = "create") => {
-    setActiveTab("infos"); 
+    setActiveTab("infos");
     setModalMode(mode); 
 
     if (eleve) {
@@ -139,7 +139,7 @@ export default function Eleves() {
         date_paiement: new Date().toISOString().split('T')[0],
         eleve_id: editingEleve.id
       });
-      
+
       const res = await api.get(`/paiements/eleve/${editingEleve.id}`);
       setPaiementsEleve(res.data);
       setNouveauPaiement({ montant: "", motif: "Tranche 1", mode_paiement: "Espèces" });
@@ -157,7 +157,7 @@ export default function Eleves() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canEdit) return alert("Permissions insuffisantes."); 
+    if (!canEdit) return alert("Permissions insuffisantes.");
 
     try {
       const payload = { ...editingEleve };
@@ -185,6 +185,7 @@ export default function Eleves() {
 
   const handleDelete = async (id: number) => {
     if (!canDelete) return alert("Seul le Directeur est autorisé à supprimer un élève.");
+
     if (window.confirm("Êtes-vous sûr de vouloir retirer cet élève ? (Attention : Impossible si l'élève a un historique de paiements)")) {
       try {
         await api.delete(`/eleves/${id}`);
@@ -192,7 +193,6 @@ export default function Eleves() {
         fetchData();
       } catch (error: any) {
         console.error("Erreur de suppression", error);
-        // ✨ NOUVEAU : Affichage clair de l'erreur du backend
         const errorMsg = error.response?.data?.detail || "Impossible de supprimer cet élève. Il possède probablement un historique financier qui empêche sa suppression par sécurité comptable.";
         alert("❌ Opération bloquée :\n\n" + errorMsg);
       }
@@ -207,44 +207,46 @@ export default function Eleves() {
 
   const getCycleIcon = (cycle: string) => {
     switch(cycle) {
-      case "Maternelle": return <School className="text-pink-500 mr-2" size={24} />;
-      case "Primaire": return <Backpack className="text-blue-500 mr-2" size={24} />;
-      case "Collège": return <BookOpen className="text-green-500 mr-2" size={24} />;
-      case "Lycée": return <GraduationCap className="text-purple-500 mr-2" size={24} />;
-      default: return <School className="text-gray-500 mr-2" size={24} />;
+      case "Maternelle": return <School className="text-pink-500 mr-2 shrink-0" size={24} />;
+      case "Primaire": return <Backpack className="text-blue-500 mr-2 shrink-0" size={24} />;
+      case "Collège": return <BookOpen className="text-green-500 mr-2 shrink-0" size={24} />;
+      case "Lycée": return <GraduationCap className="text-purple-500 mr-2 shrink-0" size={24} />;
+      default: return <School className="text-gray-500 mr-2 shrink-0" size={24} />;
     }
   };
 
   const getCycle = (classe?: Classe) => {
     if (!classe) return "Non assigné";
     const text = `${classe.nom} ${classe.niveau}`.toLowerCase();
+
     if (text.includes("maternelle") || text.includes("pré")) return "Maternelle";
     if (text.includes("primaire") || text.includes("cp") || text.includes("ce") || text.includes("cm")) return "Primaire";
     if (text.includes("collège") || text.includes("college") || text.includes("ème")) return "Collège";
     if (text.includes("lycée") || text.includes("lycee") || text.includes("seconde") || text.includes("première") || text.includes("terminale")) return "Lycée";
+    
     return "Autres";
   };
 
   const cyclesOrder = ["Maternelle", "Primaire", "Collège", "Lycée", "Autres", "Non assigné"];
 
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 print:hidden">
         <div>
-          <h2 className="text-3xl font-bold text-gray-800 flex items-center">
-            <GraduationCap className="w-8 h-8 mr-3 text-blue-600" />
+          <h2 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center">
+            <GraduationCap className="w-8 h-8 mr-3 text-blue-600 shrink-0" />
             Gestion des Elèves
           </h2>
-          <p className="text-gray-500">Consultez les effectifs classés par cycle et gérez les dossiers.</p>
+          <p className="text-gray-500 text-sm md:text-base">Consultez les effectifs classés par cycle et gérez les dossiers.</p>
         </div>
-        <div className="flex space-x-3">
-          <button onClick={() => window.print()} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg flex items-center font-medium transition-colors">
-            <Download size={20} className="mr-2" /> Exporter PDF
+        <div className="flex flex-wrap gap-3 w-full sm:w-auto">
+          <button onClick={() => window.print()} className="flex-1 sm:flex-none justify-center bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg flex items-center font-medium transition-colors">
+            <Download size={20} className="mr-2 shrink-0" /> Exporter
           </button>
           {canEdit && (
-            <button onClick={() => openModal(null, "create")} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center shadow">
-              <Plus size={20} className="mr-2" /> Inscrire un Élève
+            <button onClick={() => openModal(null, "create")} className="flex-1 sm:flex-none justify-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center shadow transition-colors">
+              <Plus size={20} className="mr-2 shrink-0" /> Inscrire
             </button>
           )}
         </div>
@@ -255,7 +257,7 @@ export default function Eleves() {
       </div>
 
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex items-center print:hidden">
-        <Search className="text-gray-400 mr-3" />
+        <Search className="text-gray-400 mr-3 shrink-0" />
         <input type="text" placeholder="Rechercher par nom, prénom ou matricule..." className="w-full outline-none text-gray-700"
           value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
       </div>
@@ -271,58 +273,61 @@ export default function Eleves() {
 
             return (
               <div key={cycle} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex items-center">
+                <div className="bg-gray-50 px-4 md:px-6 py-4 border-b border-gray-200 flex items-center">
                   {getCycleIcon(cycle)}
-                  <h2 className="text-xl font-bold text-gray-800">{cycle}</h2>
-                  <span className="ml-3 bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
+                  <h2 className="text-lg md:text-xl font-bold text-gray-800">{cycle}</h2>
+                  <span className="ml-3 bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-xs md:text-sm font-medium whitespace-nowrap">
                     {elevesDuCycle.length} élève{elevesDuCycle.length > 1 ? 's' : ''}
                   </span>
                 </div>
                 
-                <table className="w-full text-left">
-                  <thead className="bg-white text-gray-500 border-b border-gray-100 text-sm">
-                    <tr>
-                      <th className="px-6 py-3 font-medium">Matricule</th>
-                      <th className="px-6 py-3 font-medium">Nom & Prénom</th>
-                      <th className="px-6 py-3 font-medium">Classe</th>
-                      <th className="px-6 py-3 font-medium">Statut</th>
-                      <th className="px-6 py-3 font-medium text-right print:hidden">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {elevesDuCycle.map((eleve) => (
-                      <tr key={eleve.id} className="border-b border-gray-50 hover:bg-blue-50/50 transition-colors">
-                        <td className="px-6 py-4 text-gray-600 font-medium">{eleve.matricule || "-"}</td>
-                        <td className="px-6 py-4 font-bold text-gray-800">{eleve.nom} {eleve.prenom}</td>
-                        <td className="px-6 py-4 text-gray-600">{eleve.classe?.nom || "Non assignée"}</td>
-                        <td className="px-6 py-4">{getStatusBadge(eleve.statut_inscription)}</td>
-                        <td className="px-6 py-4 flex justify-end gap-2 print:hidden">
-                          {canPrintCertificat && (
-                            <button onClick={() => setCertificatEleve(eleve)} className="p-2 text-purple-600 hover:bg-purple-100 rounded-lg transition-colors" title="Générer Certificat">
-                              <Printer size={18} />
-                            </button>
-                          )}
-                          
-                          <button onClick={() => openModal(eleve, "view")} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors" title="Consulter la fiche">
-                            <Eye size={18} />
-                          </button>
-
-                          {canEdit && (
-                            <button onClick={() => openModal(eleve, "edit")} className="p-2 text-yellow-600 hover:bg-yellow-100 rounded-lg transition-colors" title="Modifier">
-                              <Edit size={18} />
-                            </button>
-                          )}
-
-                          {canDelete && (
-                            <button onClick={() => handleDelete(eleve.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors" title="Retirer">
-                              <Trash2 size={18} />
-                            </button>
-                          )}
-                        </td>
+                {/* 🚀 LE CORRECTIF EST ICI : overflow-x-auto et min-w-[900px] */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left min-w-[900px]">
+                    <thead className="bg-white text-gray-500 border-b border-gray-100 text-sm">
+                      <tr>
+                        <th className="px-6 py-3 font-medium">Matricule</th>
+                        <th className="px-6 py-3 font-medium">Nom & Prénom</th>
+                        <th className="px-6 py-3 font-medium">Classe</th>
+                        <th className="px-6 py-3 font-medium">Statut</th>
+                        <th className="px-6 py-3 font-medium text-right print:hidden">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {elevesDuCycle.map((eleve) => (
+                        <tr key={eleve.id} className="border-b border-gray-50 hover:bg-blue-50/50 transition-colors">
+                          <td className="px-6 py-4 text-gray-600 font-medium">{eleve.matricule || "-"}</td>
+                          <td className="px-6 py-4 font-bold text-gray-800">{eleve.nom} {eleve.prenom}</td>
+                          <td className="px-6 py-4 text-gray-600">{eleve.classe?.nom || "Non assignée"}</td>
+                          <td className="px-6 py-4">{getStatusBadge(eleve.statut_inscription)}</td>
+                          <td className="px-6 py-4 flex justify-end gap-2 print:hidden">
+                            {canPrintCertificat && (
+                              <button onClick={() => setCertificatEleve(eleve)} className="p-2 text-purple-600 hover:bg-purple-100 rounded-lg transition-colors" title="Générer Certificat">
+                                <Printer size={18} />
+                              </button>
+                            )}
+                            
+                            <button onClick={() => openModal(eleve, "view")} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors" title="Consulter la fiche">
+                              <Eye size={18} />
+                            </button>
+
+                            {canEdit && (
+                              <button onClick={() => openModal(eleve, "edit")} className="p-2 text-yellow-600 hover:bg-yellow-100 rounded-lg transition-colors" title="Modifier">
+                                <Edit size={18} />
+                              </button>
+                            )}
+
+                            {canDelete && (
+                              <button onClick={() => handleDelete(eleve.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors" title="Retirer">
+                                <Trash2 size={18} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             );
           })}
@@ -337,33 +342,34 @@ export default function Eleves() {
 
       {/* MODALE AVEC 3 ONGLETS */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 print:hidden">
-          <div className="bg-white rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 md:p-4 print:hidden">
+          <div className="bg-white rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[95vh] md:max-h-[90vh]">
             
-            <div className="p-6 border-b flex justify-between items-center bg-gray-50">
-              <h2 className="text-xl font-bold text-gray-800">
+            <div className="p-4 md:p-6 border-b flex justify-between items-center bg-gray-50">
+              <h2 className="text-lg md:text-xl font-bold text-gray-800 flex items-center">
                 {editingEleve?.id ? `Dossier de ${editingEleve.nom}` : "Nouvelle Inscription"}
-                {modalMode === "view" && <span className="ml-3 text-sm bg-gray-200 text-gray-600 px-2 py-1 rounded">Lecture seule</span>}
+                {modalMode === "view" && <span className="ml-3 text-xs md:text-sm bg-gray-200 text-gray-600 px-2 py-1 rounded whitespace-nowrap">Lecture seule</span>}
               </h2>
-              <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
+              <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 p-1">
                 <X size={24} />
               </button>
             </div>
 
-            <div className="flex border-b bg-white px-6 pt-2 overflow-x-auto">
+            {/* Onglets défilants sur mobile */}
+            <div className="flex border-b bg-white px-2 md:px-6 pt-2 overflow-x-auto scrollbar-hide">
               <button 
                 type="button"
                 onClick={() => setActiveTab("infos")} 
-                className={`px-6 py-4 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === "infos" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
+                className={`px-4 md:px-6 py-3 md:py-4 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === "infos" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
               >
                 📝 Identité & Scolarité
               </button>
               <button 
                 type="button"
                 onClick={() => setActiveTab("coordonnees")} 
-                className={`px-6 py-4 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === "coordonnees" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
+                className={`px-4 md:px-6 py-3 md:py-4 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === "coordonnees" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
               >
-                👨‍👩‍👧 Coordonnées & Statut
+                👨‍👩‍👧 Coordonnées
               </button>
               
               {canViewFinances && (
@@ -371,20 +377,20 @@ export default function Eleves() {
                   type="button"
                   onClick={() => setActiveTab("finances")} 
                   disabled={!editingEleve?.id} 
-                  className={`px-6 py-4 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${!editingEleve?.id ? "opacity-50 cursor-not-allowed" : activeTab === "finances" ? "border-green-600 text-green-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
+                  className={`px-4 md:px-6 py-3 md:py-4 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${!editingEleve?.id ? "opacity-50 cursor-not-allowed" : activeTab === "finances" ? "border-green-600 text-green-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
                 >
-                  💰 Finances & Paiements
+                  💰 Finances
                 </button>
               )}
             </div>
 
             <div className="overflow-y-auto flex-1 bg-white">
-              
-              <form id="eleve-form" onSubmit={handleSave} className={activeTab === "finances" ? "hidden" : "p-6"}>
+              <form id="eleve-form" onSubmit={handleSave} className={activeTab === "finances" ? "hidden" : "p-4 md:p-6"}>
                 
                 {/* ONGLET 1 : IDENTITÉ */}
                 <div className={activeTab === "infos" ? "block" : "hidden"}>
-                  <div className="grid grid-cols-2 gap-4 mb-6">
+                  {/* 🚀 LE CORRECTIF GRILLES RESPONSIVE EST ICI : grid-cols-1 md:grid-cols-2 */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Matricule *</label>
                       <input type="text" required disabled={isFormDisabled} className="w-full p-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
@@ -392,7 +398,7 @@ export default function Eleves() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Classe *</label>
-                      <select disabled={isFormDisabled} className="w-full p-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
+                      <select disabled={isFormDisabled} className="w-full p-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-500 bg-white"
                         value={editingEleve?.classe_id || ""} onChange={e => setEditingEleve({...editingEleve, classe_id: Number(e.target.value)})}>
                         {classes.map(c => (
                           <option key={c.id} value={c.id}>{c.niveau} - {c.nom}</option>
@@ -411,7 +417,7 @@ export default function Eleves() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Sexe</label>
-                      <select disabled={isFormDisabled} className="w-full p-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
+                      <select disabled={isFormDisabled} className="w-full p-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-500 bg-white"
                         value={editingEleve?.sexe || "M"} onChange={e => setEditingEleve({...editingEleve, sexe: e.target.value})}>
                         <option value="M">Masculin</option>
                         <option value="F">Féminin</option>
@@ -419,10 +425,10 @@ export default function Eleves() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Date de naissance</label>
-                      <input type="date" disabled={isFormDisabled} className="w-full p-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
+                      <input type="date" disabled={isFormDisabled} className="w-full p-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-500 bg-white"
                         value={editingEleve?.date_naissance || ""} onChange={e => setEditingEleve({...editingEleve, date_naissance: e.target.value})} />
                     </div>
-                    <div className="col-span-2">
+                    <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Lieu de naissance</label>
                       <input type="text" placeholder="Ex: Yaoundé" disabled={isFormDisabled} className="w-full p-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
                         value={editingEleve?.lieu_naissance || ""} onChange={e => setEditingEleve({...editingEleve, lieu_naissance: e.target.value})} />
@@ -432,7 +438,7 @@ export default function Eleves() {
 
                 {/* ONGLET 2 : COORDONNÉES & STATUT */}
                 <div className={activeTab === "coordonnees" ? "block" : "hidden"}>
-                  <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Responsable légal</label>
                       <input type="text" placeholder="Ex: Jean Dupont (Père)" disabled={isFormDisabled} className="w-full p-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
@@ -443,7 +449,7 @@ export default function Eleves() {
                       <input type="text" placeholder="Ex: 6XX XX XX XX" disabled={isFormDisabled} className="w-full p-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
                         value={editingEleve?.telephone_parents || ""} onChange={e => setEditingEleve({...editingEleve, telephone_parents: e.target.value})} />
                     </div>
-                    <div className="col-span-2">
+                    <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Adresse / Quartier</label>
                       <input type="text" placeholder="Ex: Biyem-Assi, Yaoundé" disabled={isFormDisabled} className="w-full p-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
                         value={editingEleve?.adresse || ""} onChange={e => setEditingEleve({...editingEleve, adresse: e.target.value})} />
@@ -451,18 +457,18 @@ export default function Eleves() {
                   </div>
 
                   {canViewFinances && (
-                    <div className="mb-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                      <label className="block text-sm font-bold text-yellow-800 mb-1 flex items-center">
+                    <div className="mb-6 p-4 bg-yellow-50 rounded-xl border border-yellow-200">
+                      <label className="block text-sm font-bold text-yellow-800 mb-2 flex items-center">
                         <DollarSign size={18} className="mr-1"/> Scolarité totale exigée (FCFA)
                       </label>
-                      <input type="number" disabled={isFormDisabled} className="w-full p-2 border border-yellow-300 rounded-lg bg-white text-lg font-medium disabled:bg-gray-100 disabled:text-gray-500"
+                      <input type="number" disabled={isFormDisabled} className="w-full p-3 border border-yellow-300 rounded-lg bg-white text-lg font-medium disabled:bg-gray-100 disabled:text-gray-500"
                         value={editingEleve?.scolarite_totale || ""} onChange={e => setEditingEleve({...editingEleve, scolarite_totale: Number(e.target.value)})} 
                         placeholder="Ex: 150000" />
                     </div>
                   )}
 
-                  <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-100">
-                    <div className="mb-4">
+                  <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 space-y-4">
+                    <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">État du dossier</label>
                       <select disabled={isFormDisabled} className="w-full p-2 border rounded-lg bg-white disabled:bg-gray-100 disabled:text-gray-500"
                         value={editingEleve?.statut_inscription || "En attente"} 
@@ -485,10 +491,10 @@ export default function Eleves() {
                 </div>
               </form>
 
-              {/* ONGLET 3 : FINANCES (Sécurisé) */}
+              {/* ONGLET 3 : FINANCES */}
               {activeTab === "finances" && canViewFinances && (
-                <div className="p-6">
-                  <div className="grid grid-cols-3 gap-4 mb-8">
+                <div className="p-4 md:p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                     <div className="bg-gray-50 p-4 rounded-xl border">
                       <p className="text-sm text-gray-500 font-medium">Scolarité Totale</p>
                       <h3 className="text-xl font-bold text-gray-800">{editingEleve?.scolarite_totale?.toLocaleString("fr-FR")} FCFA</h3>
@@ -513,7 +519,7 @@ export default function Eleves() {
                       <form onSubmit={handleEncaissement} className="space-y-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Montant (FCFA) *</label>
-                          <input type="number" required disabled={!canEdit} value={nouveauPaiement.montant} onChange={e => setNouveauPaiement({...nouveauPaiement, montant: e.target.value})} className="w-full p-2 border rounded-lg disabled:bg-gray-100" />
+                          <input type="number" required disabled={!canEdit} value={nouveauPaiement.montant} onChange={e => setNouveauPaiement({...nouveauPaiement, montant: e.target.value})} className="w-full p-2 border rounded-lg disabled:bg-gray-100 bg-white" />
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Motif *</label>
@@ -535,7 +541,7 @@ export default function Eleves() {
                           </select>
                         </div>
                         {canEdit && (
-                          <button type="submit" className="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors mt-2">
+                          <button type="submit" className="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors mt-2 shadow-sm">
                             Valider le paiement
                           </button>
                         )}
@@ -549,12 +555,12 @@ export default function Eleves() {
                       ) : (
                         <div className="space-y-3 max-h-72 overflow-y-auto pr-2">
                           {paiementsEleve.map(paiement => (
-                            <div key={paiement.id} className="flex justify-between items-center p-3 border rounded-lg hover:bg-gray-50">
+                            <div key={paiement.id} className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 border rounded-lg hover:bg-gray-50 gap-2">
                               <div>
                                 <p className="font-bold text-gray-800">{paiement.motif}</p>
                                 <p className="text-xs text-gray-500">{new Date(paiement.date_paiement).toLocaleDateString("fr-FR")} • {paiement.mode_paiement}</p>
                               </div>
-                              <span className="font-bold text-green-700">+{paiement.montant.toLocaleString("fr-FR")} FCFA</span>
+                              <span className="font-bold text-green-700 self-start sm:self-auto">+{paiement.montant.toLocaleString("fr-FR")} FCFA</span>
                             </div>
                           ))}
                         </div>
@@ -565,13 +571,13 @@ export default function Eleves() {
               )}
             </div>
 
-            <div className="p-4 border-t bg-gray-50 flex justify-end gap-3">
+            <div className="p-4 border-t bg-gray-50 flex justify-end gap-3 shrink-0">
               <button type="button" onClick={closeModal} className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg font-medium transition-colors">
                 Fermer
               </button>
               {activeTab !== "finances" && modalMode !== "view" && canEdit && (
                 <button type="submit" form="eleve-form" className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow transition-colors">
-                  Sauvegarder la fiche
+                  Sauvegarder
                 </button>
               )}
             </div>
