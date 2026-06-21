@@ -1,50 +1,39 @@
 # backend/main.py
+import os
 from fastapi import FastAPI
-from routers import auth, utilisateurs # On importe le nouveau routeur
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+
 import models
 from database import engine
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles # <-- Nouvelle importation
-import os # <-- Nouvelle importation
 from routers import auth, utilisateurs, dashboard, personnel, classes, eleves, parametres, paiements, calendrier, matieres
 
-# Création du dossier uploads s'il n'existe pas
+# Création du dossier uploads s'il n'existe pas (pour le logo de l'école)
 os.makedirs("uploads", exist_ok=True)
 
+# Création des tables dans la base de données
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="API Gestion Scolaire Moderne")
 
+# Montage du dossier statique pour rendre les images accessibles
 app.mount("/static", StaticFiles(directory="uploads"), name="static")
 
 # ==========================================
-# CONFIGURATION CORS (A ajouter obligatoirement)
+# CONFIGURATION CORS (Pour autoriser le Frontend en ligne)
 # ==========================================
-origins = [
-    "http://localhost:5173",     # Si tu utilises localhost
-    "http://127.0.0.1:5173",     # Si ton navigateur utilise l'IP locale
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,       # Autorise les adresses définies au-dessus
+    allow_origins=["*"],         # Autorise toutes les adresses (Vercel, localhost, etc.)
     allow_credentials=True,
     allow_methods=["*"],         # Autorise toutes les méthodes (GET, POST, PUT, DELETE)
     allow_headers=["*"],         # Autorise tous les en-têtes
 )
 # ==========================================
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"], # Autorise toutes les méthodes (GET, POST, etc.)
-    allow_headers=["*"], # Autorise tous les en-têtes
-)
-
 # On connecte les routeurs à l'application
 app.include_router(auth.router)
-app.include_router(utilisateurs.router) # La nouvelle ligne est ici !
+app.include_router(utilisateurs.router)
 app.include_router(dashboard.router)
 app.include_router(personnel.router)
 app.include_router(classes.router)

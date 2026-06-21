@@ -1,10 +1,19 @@
 # backend/database.py
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-# Remplace 'ton_mot_de_passe' par ton mot de passe PostgreSQL
-# Format : postgresql://utilisateur:mot_de_passe@serveur:port/nom_de_la_base
-SQLALCHEMY_DATABASE_URL = "postgresql://postgres:Password@127.0.0.1:5432/gestion_scolaire"
+# 1. On récupère l'URL depuis le serveur Cloud (ex: Render, Neon)
+# Si elle n'existe pas (quand tu codes sur ton PC), on utilise ta base locale par défaut
+SQLALCHEMY_DATABASE_URL = os.getenv(
+    "DATABASE_URL", 
+    "postgresql://postgres:Password@127.0.0.1:5432/gestion_scolaire"
+)
+
+# 2. Petite sécurité : SQLAlchemy exige "postgresql://" et non "postgres://"
+# Certains hébergeurs cloud donnent des URL commençant par "postgres://"
+if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
+    SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
