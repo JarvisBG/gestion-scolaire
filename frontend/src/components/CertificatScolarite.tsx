@@ -79,7 +79,7 @@ export default function CertificatScolarite({ eleve, etablissement, onClose }: P
                 </p>
               </div>
               <p>
-                Est régulièrement inscrit(e) dans notre établissement et suit les cours en classe de <strong>{eleve.classe?.niveau} - {eleve.classe?.nom}</strong> pour l'année scolaire <strong>2025/2026</strong>.
+                Est régulièrement inscrit(e) dans notre établissement et suit les cours en classe de <strong>{eleve.classe?.niveau} - {eleve.classe?.nom}</strong> pour l'année scolaire <strong>2026/2027</strong>.
               </p>
               <p className="mt-8">
                 En foi de quoi, le présent certificat lui est délivré pour servir et valoir ce que de droit.
