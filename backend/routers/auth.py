@@ -21,9 +21,12 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # 3. On vérifie si le compte est actif
+    # 3. LE VIGILE : On bloque strictement si le compte est suspendu
     if not user.est_actif:
-        raise HTTPException(status_code=400, detail="Ce compte a été désactivé")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Ce compte a été suspendu par l'administration."
+        )
 
     # 4. On génère le passeport (Token JWT)
     access_token = security.create_access_token(
