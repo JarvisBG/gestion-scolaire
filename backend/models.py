@@ -21,7 +21,7 @@ class Classe(Base):
     nom = Column(String, index=True) # Ex: 6ème A
     niveau = Column(String) # Ex: Collège
     salle = Column(String, nullable=True) # Ex: B12
-    prof_principal = Column(String, nullable=True) # Le nom du prof envoyé par React
+    prof_principal = Column(String, nullable=True) # Nom du prof en texte
     
     eleves = relationship("Eleve", back_populates="classe")
 
@@ -42,7 +42,9 @@ class Eleve(Base):
     
     statut_inscription = Column(String, default="En attente")
     observations = Column(Text, nullable=True)
-    classe_id = Column(Integer, ForeignKey("classes.id"))
+    
+    # Sécurité: Si on supprime une classe, les élèves ne sont pas supprimés, ils perdent juste leur classe (SET NULL)
+    classe_id = Column(Integer, ForeignKey("classes.id", ondelete="SET NULL"), nullable=True)
 
     classe = relationship("Classe", back_populates="eleves")
     paiements = relationship("Paiement", back_populates="eleve", cascade="all, delete-orphan")
@@ -52,7 +54,7 @@ class Matiere(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     nom = Column(String, unique=True, index=True)
-    couleur = Column(String, default="#3B82F6")  # Format Hexadécimal (Ex: #3B82F6 pour le bleu)
+    couleur = Column(String, default="#3B82F6")
 
 class Employe(Base):
     __tablename__ = "employes"
@@ -71,7 +73,8 @@ class Employe(Base):
     statut = Column(String, default="Actif")
     observations = Column(Text, nullable=True)
     
-    utilisateur_id = Column(Integer, ForeignKey("utilisateurs.id"), unique=True, nullable=True)
+    # Sécurité: Si l'utilisateur système est supprimé, on garde l'employé pour l'historique RH
+    utilisateur_id = Column(Integer, ForeignKey("utilisateurs.id", ondelete="SET NULL"), unique=True, nullable=True)
     utilisateur = relationship("Utilisateur")
 
 class Etablissement(Base):
@@ -92,9 +95,11 @@ class Paiement(Base):
     id = Column(Integer, primary_key=True, index=True)
     montant = Column(Float, nullable=False)
     date_paiement = Column(Date, nullable=False)
-    motif = Column(String, nullable=False) # Ex: Inscription, Tranche 1, Tranche 2
-    mode_paiement = Column(String, nullable=False) # Ex: Espèces, Orange Money, Virement
-    eleve_id = Column(Integer, ForeignKey("eleves.id"))
+    motif = Column(String, nullable=False) 
+    mode_paiement = Column(String, nullable=False) 
+    
+    # Sécurité: Si on force la suppression d'un élève (le Directeur), ça supprime aussi ses paiements
+    eleve_id = Column(Integer, ForeignKey("eleves.id", ondelete="CASCADE"))
 
     eleve = relationship("Eleve", back_populates="paiements")
 
@@ -102,7 +107,7 @@ class Salle(Base):
     __tablename__ = "salles"
 
     id = Column(Integer, primary_key=True, index=True)
-    nom = Column(String, unique=True, index=True) # Ex: Salle 1, Labo Informatique
+    nom = Column(String, unique=True, index=True)
     capacite = Column(Integer, default=30)
 
 class Seance(Base):
@@ -113,13 +118,12 @@ class Seance(Base):
     heure_debut = Column(Time, nullable=False) 
     heure_fin = Column(Time, nullable=False)   
     
-    # --- CORRECTION ICI ---
     matiere_id = Column(Integer, ForeignKey("matieres.id", ondelete="CASCADE"))
-    prof_id = Column(Integer, ForeignKey("employes.id", ondelete="CASCADE")) # <-- Pointe maintenant vers les employés
+    prof_id = Column(Integer, ForeignKey("employes.id", ondelete="CASCADE")) 
     classe_id = Column(Integer, ForeignKey("classes.id", ondelete="CASCADE"))
-    salle_id = Column(Integer, ForeignKey("salles.id", ondelete="CASCADE"), nullable=True) # <-- Permet de laisser vide (Salle par défaut)
+    salle_id = Column(Integer, ForeignKey("salles.id", ondelete="CASCADE"), nullable=True)
 
     matiere = relationship("Matiere")
-    prof = relationship("Employe") # <-- Reflète la correction
+    prof = relationship("Employe")
     classe = relationship("Classe")
     salle = relationship("Salle")
