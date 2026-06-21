@@ -35,7 +35,6 @@ export default function Eleves() {
   const [searchTerm, setSearchTerm] = useState("");
   
   const [isModalOpen, setIsModalOpen] = useState(false);
-  // Ajout d'une gestion du mode pour différencier l'édition de la simple vue
   const [modalMode, setModalMode] = useState<"create" | "edit" | "view">("create");
   const [editingEleve, setEditingEleve] = useState<Partial<Eleve> | null>(null);
   const [etablissement, setEtablissement] = useState<any>(null);
@@ -46,12 +45,11 @@ export default function Eleves() {
 
   // --- 🛡️ GESTION DES PERMISSIONS DU CAMÉLÉON ---
   const userRole = localStorage.getItem("role") || "Enseignant";
-  const canEdit = userRole === "Directeur" || userRole === "Secrétaire"; // Créer/Modifier
-  const canDelete = userRole === "Directeur"; // Supprimer (Exclusif)
-  const canViewFinances = userRole === "Directeur" || userRole === "Secrétaire"; // Finances cachées aux enseignants
+  const canEdit = userRole === "Directeur" || userRole === "Secrétaire"; 
+  const canDelete = userRole === "Directeur"; 
+  const canViewFinances = userRole === "Directeur" || userRole === "Secrétaire"; 
   const canPrintCertificat = userRole === "Directeur" || userRole === "Secrétaire";
   
-  // Le formulaire est bloqué si on n'a pas les droits, ou si on a cliqué sur "Voir" (l'œil)
   const isFormDisabled = !canEdit || modalMode === "view";
 
   useEffect(() => {
@@ -96,7 +94,7 @@ export default function Eleves() {
 
   const openModal = async (eleve: any = null, mode: "create" | "edit" | "view" = "create") => {
     setActiveTab("infos"); 
-    setModalMode(mode); // On enregistre si c'est pour voir ou modifier
+    setModalMode(mode); 
 
     if (eleve) {
       setEditingEleve(eleve);
@@ -159,7 +157,7 @@ export default function Eleves() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canEdit) return alert("Permissions insuffisantes."); // Sécurité supplémentaire
+    if (!canEdit) return alert("Permissions insuffisantes."); 
 
     try {
       const payload = { ...editingEleve };
@@ -187,12 +185,16 @@ export default function Eleves() {
 
   const handleDelete = async (id: number) => {
     if (!canDelete) return alert("Seul le Directeur est autorisé à supprimer un élève.");
-    if (window.confirm("Êtes-vous sûr de vouloir retirer cet élève ?")) {
+    if (window.confirm("Êtes-vous sûr de vouloir retirer cet élève ? (Attention : Impossible si l'élève a un historique de paiements)")) {
       try {
         await api.delete(`/eleves/${id}`);
+        alert("✅ Élève retiré avec succès.");
         fetchData();
-      } catch (error) {
+      } catch (error: any) {
         console.error("Erreur de suppression", error);
+        // ✨ NOUVEAU : Affichage clair de l'erreur du backend
+        const errorMsg = error.response?.data?.detail || "Impossible de supprimer cet élève. Il possède probablement un historique financier qui empêche sa suppression par sécurité comptable.";
+        alert("❌ Opération bloquée :\n\n" + errorMsg);
       }
     }
   };
@@ -240,7 +242,6 @@ export default function Eleves() {
           <button onClick={() => window.print()} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg flex items-center font-medium transition-colors">
             <Download size={20} className="mr-2" /> Exporter PDF
           </button>
-          {/* Le bouton d'ajout est masqué pour l'enseignant */}
           {canEdit && (
             <button onClick={() => openModal(null, "create")} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center shadow">
               <Plus size={20} className="mr-2" /> Inscrire un Élève
@@ -296,26 +297,22 @@ export default function Eleves() {
                         <td className="px-6 py-4 text-gray-600">{eleve.classe?.nom || "Non assignée"}</td>
                         <td className="px-6 py-4">{getStatusBadge(eleve.statut_inscription)}</td>
                         <td className="px-6 py-4 flex justify-end gap-2 print:hidden">
-                          {/* L'icône Impression (Directeur/Secrétaire) */}
                           {canPrintCertificat && (
                             <button onClick={() => setCertificatEleve(eleve)} className="p-2 text-purple-600 hover:bg-purple-100 rounded-lg transition-colors" title="Générer Certificat">
                               <Printer size={18} />
                             </button>
                           )}
                           
-                          {/* L'icône Détails (Pour tout le monde) */}
                           <button onClick={() => openModal(eleve, "view")} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors" title="Consulter la fiche">
                             <Eye size={18} />
                           </button>
 
-                          {/* L'icône Édition (Directeur/Secrétaire) */}
                           {canEdit && (
                             <button onClick={() => openModal(eleve, "edit")} className="p-2 text-yellow-600 hover:bg-yellow-100 rounded-lg transition-colors" title="Modifier">
                               <Edit size={18} />
                             </button>
                           )}
 
-                          {/* L'icône Corbeille (Directeur uniquement) */}
                           {canDelete && (
                             <button onClick={() => handleDelete(eleve.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors" title="Retirer">
                               <Trash2 size={18} />
@@ -353,7 +350,6 @@ export default function Eleves() {
               </button>
             </div>
 
-            {/* BARRE DES ONGLETS */}
             <div className="flex border-b bg-white px-6 pt-2 overflow-x-auto">
               <button 
                 type="button"
@@ -370,7 +366,6 @@ export default function Eleves() {
                 👨‍👩‍👧 Coordonnées & Statut
               </button>
               
-              {/* L'onglet Finances est caché aux enseignants */}
               {canViewFinances && (
                 <button 
                   type="button"
@@ -383,7 +378,6 @@ export default function Eleves() {
               )}
             </div>
 
-            {/* CONTENU DYNAMIQUE DES ONGLETS */}
             <div className="overflow-y-auto flex-1 bg-white">
               
               <form id="eleve-form" onSubmit={handleSave} className={activeTab === "finances" ? "hidden" : "p-6"}>

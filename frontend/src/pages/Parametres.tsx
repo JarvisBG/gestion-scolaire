@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import api from "../api/axios";
-import { Settings, Save, UploadCloud, School } from "lucide-react";
+import { Settings, Save, UploadCloud, School, Calendar } from "lucide-react";
 
 interface Etablissement {
   nom: string;
@@ -9,11 +9,12 @@ interface Etablissement {
   email: string;
   directeur: string;
   logo_url: string | null;
+  annee_scolaire: string; // ✨ Le nouveau champ ajouté ici
 }
 
 export default function Parametres() {
   const [etablissement, setEtablissement] = useState<Etablissement>({
-    nom: "", adresse: "", telephone: "", email: "", directeur: "", logo_url: null
+    nom: "", adresse: "", telephone: "", email: "", directeur: "", logo_url: null, annee_scolaire: "2025-2026"
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -26,7 +27,13 @@ export default function Parametres() {
   const fetchEtablissement = async () => {
     try {
       const response = await api.get("/parametres/");
-      setEtablissement(response.data);
+      if (response.data) {
+          // On s'assure de ne pas écraser une valeur par défaut avec un "null" si la base de données est vide
+          setEtablissement({
+              ...response.data,
+              annee_scolaire: response.data.annee_scolaire || "2025-2026"
+          });
+      }
     } catch (error) {
       console.error("Erreur de récupération des paramètres", error);
     }
@@ -90,11 +97,11 @@ export default function Parametres() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
-        {/* Colonne de Gauche : Gestion du Logo */}
+        {/* Colonne de Gauche : Gestion du Logo (Ton design intact) */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center text-center h-fit">
           <h2 className="text-lg font-bold text-gray-800 mb-4 w-full border-b pb-2">Logo Officiel</h2>
           
-          <div className="w-40 h-40 bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center overflow-hidden mb-4">
+          <div className="w-40 h-40 bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center overflow-hidden mb-4 p-2">
             {etablissement.logo_url ? (
               <img src={etablissement.logo_url} alt="Logo de l'école" className="w-full h-full object-contain" />
             ) : (
@@ -131,11 +138,31 @@ export default function Parametres() {
 
         {/* Colonne de Droite : Coordonnées textuelles */}
         <div className="md:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h2 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2">Coordonnées de l'établissement</h2>
+          <h2 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2">Paramètres de l'école</h2>
+          
           <form onSubmit={handleSaveTextes} className="space-y-4">
+            
+            {/* ✨ NOUVEAU : ENCADRÉ ANNÉE SCOLAIRE ✨ */}
+            <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 flex items-center justify-between mb-2">
+              <div>
+                <label className="block text-sm font-bold text-blue-900 mb-1 flex items-center">
+                  <Calendar size={18} className="mr-2" /> Année Scolaire Active
+                </label>
+                <p className="text-xs text-blue-700">Modifiez ceci lors de la rentrée scolaire.</p>
+              </div>
+              <input 
+                type="text" 
+                required 
+                value={etablissement.annee_scolaire || "2025-2026"} 
+                onChange={(e) => setEtablissement({ ...etablissement, annee_scolaire: e.target.value })} 
+                className="w-32 md:w-48 p-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-bold text-center text-blue-900 bg-white" 
+                placeholder="Ex: 2025-2026" 
+              />
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Nom officiel de l'école *</label>
-              <input type="text" required value={etablissement.nom || ""} onChange={(e) => setEtablissement({ ...etablissement, nom: e.target.value })} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+              <input type="text" required value={etablissement.nom || ""} onChange={(e) => setEtablissement({ ...etablissement, nom: e.target.value })} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-bold" />
             </div>
             
             <div className="grid grid-cols-2 gap-4">
@@ -160,7 +187,7 @@ export default function Parametres() {
             </div>
 
             <div className="pt-4 flex justify-end">
-              <button type="submit" disabled={isSaving} className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium flex items-center shadow-sm disabled:opacity-50">
+              <button type="submit" disabled={isSaving} className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium flex items-center shadow-sm disabled:opacity-50 transition-colors">
                 <Save size={20} className="mr-2" />
                 {isSaving ? "Enregistrement..." : "Enregistrer les informations"}
               </button>

@@ -126,6 +126,7 @@ class EtablissementBase(BaseModel):
     email: Optional[str] = None
     directeur: Optional[str] = None
     logo_url: Optional[str] = None
+    annee_scolaire: Optional[str] = "2025-2026"
 
 class EtablissementUpdate(EtablissementBase):
     pass

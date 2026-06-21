@@ -22,8 +22,16 @@ export default function Planning() {
 
   // --- 🛡️ GESTION DES PERMISSIONS ---
   const userRole = localStorage.getItem("role") || "Enseignant";
-  // Le directeur et la secrétaire peuvent programmer/modifier les cours
   const canEdit = userRole === "Directeur" || userRole === "Secrétaire";
+
+  // --- 📅 UTILITAIRE DE DATE LOCALE ---
+  // Protège contre les décalages horaires lors de la transformation en chaîne "YYYY-MM-DD"
+  const getLocalDateString = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   // --- CHARGEMENT INITIAL ---
   useEffect(() => {
@@ -65,7 +73,8 @@ export default function Planning() {
   };
 
   const fetchSeancesForDay = async (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0]; // Format YYYY-MM-DD
+    // Utilisation de notre nouvelle fonction robuste
+    const dateStr = getLocalDateString(date); 
     try {
       const res = await api.get(`/calendrier/seances/?date_debut=${dateStr}&date_fin=${dateStr}`);
       setSeances(res.data);
@@ -83,32 +92,30 @@ export default function Planning() {
 
   const handleCreateSeance = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canEdit) return; // Sécurité supplémentaire
+    if (!canEdit) return; 
 
     try {
-      // Préparation propre des données pour le backend
       const payload = {
         ...newSeance,
-        date_seance: currentDate.toISOString().split('T')[0],
+        // On utilise la date locale robuste pour l'enregistrement
+        date_seance: getLocalDateString(currentDate),
         classe_id: Number(newSeance.classe_id),
         matiere_id: Number(newSeance.matiere_id),
         prof_id: Number(newSeance.prof_id),
-        // Si le champ salle est vide, on envoie null
         salle_id: newSeance.salle_id ? Number(newSeance.salle_id) : null 
       };
       
       await api.post("/calendrier/seances/", payload);
       alert("✅ Cours programmé avec succès !");
       setIsModalOpen(false);
-      fetchSeancesForDay(currentDate); // On rafraîchit la grille
+      fetchSeancesForDay(currentDate); 
     } catch (error: any) {
-      // C'EST ICI QUE LE BOUCLIER ANTI-COLLISION DU BACKEND S'ACTIVE !
       alert("❌ " + (error.response?.data?.detail || "Erreur de programmation"));
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!canEdit) return; // Sécurité supplémentaire
+    if (!canEdit) return; 
     if (!window.confirm("Annuler ce cours ?")) return;
     try {
       await api.delete(`/calendrier/seances/${id}`);
@@ -197,7 +204,7 @@ export default function Planning() {
         )}
       </div>
 
-      {/* MODALE : PROGRAMMER UN COURS (L'enseignant n'a pas accès à ce code de toute façon) */}
+      {/* MODALE : PROGRAMMER UN COURS */}
       {isModalOpen && canEdit && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">

@@ -3,6 +3,9 @@ import api from "../api/axios";
 import { Users, School, BookOpen, UserCheck, AlertCircle, LayoutDashboard, TrendingUp, DollarSign, Wallet } from "lucide-react";
 
 export default function Dashboard() {
+
+  const [anneeScolaire, setAnneeScolaire] = useState("2025-2026");
+
   const [stats, setStats] = useState({
     totalEleves: 0,
     filles: 0,
@@ -43,6 +46,13 @@ export default function Dashboard() {
         const classesRes = await api.get("/classes/");
         classes = classesRes.data;
       } catch (e) { console.error("Erreur chargement classes", e); }
+      
+      try {
+        const paramRes = await api.get("/parametres/");
+        if (paramRes.data && paramRes.data.annee_scolaire) {
+          setAnneeScolaire(paramRes.data.annee_scolaire);
+        }
+      } catch (e) { console.error("Erreur chargement paramètres", e); }
 
       try {
         const personnelRes = await api.get("/personnel/");
@@ -133,7 +143,7 @@ export default function Dashboard() {
           <p className="text-gray-500 mt-1">Bienvenue sur votre espace de gestion d'établissement.</p>
         </div>
         <div className="bg-blue-50 text-blue-700 px-4 py-2 rounded-lg font-medium border border-blue-100 shadow-sm">
-          📅 Année Scolaire Active : 2025-2026
+          📅 Année Scolaire Active : {anneeScolaire}
         </div>
       </div>
 

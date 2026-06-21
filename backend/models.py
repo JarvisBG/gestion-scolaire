@@ -83,7 +83,8 @@ class Etablissement(Base):
     telephone = Column(String, nullable=True)
     email = Column(String, nullable=True)
     directeur = Column(String, nullable=True)
-    logo_url = Column(String, nullable=True) 
+    logo_url = Column(String, nullable=True)
+    annee_scolaire = Column(String, default="2025-2026") 
 
 class Paiement(Base):
     __tablename__ = "paiements"
