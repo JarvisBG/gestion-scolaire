@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import api from "../api/axios"; 
-import { Users, Search, Plus, Edit, Eye, Trash2, Key, CheckCircle, ShieldAlert, Power, XCircle } from "lucide-react";
+import { Users, Search, Plus, Edit, Eye, Trash2, Key, CheckCircle, ShieldAlert, Power, XCircle, RefreshCw } from "lucide-react";
 
 interface Employe {
   id?: number; 
@@ -28,6 +28,7 @@ export default function Personnel() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit" | "view">("create");
   const [isAccessModalOpen, setIsAccessModalOpen] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   
   const [currentEmploye, setCurrentEmploye] = useState<Employe>({
     nom: "", prenom: "", sexe: "M", date_naissance: "", telephone: "",
@@ -80,23 +81,24 @@ export default function Personnel() {
     }
   };
 
-  // --- 💡 NOUVEAU : DÉSACTIVER UN COMPTE SANS LE SUPPRIMER ---
+  // --- NOUVEAU : DÉSACTIVER UN COMPTE CORRECTEMENT ---
   const handleToggleStatus = async (emp: Employe) => {
+    if (!emp.utilisateur_id) return alert("Cet employé n'a pas de compte logiciel !");
+    
     const actionText = emp.statut === "Actif" ? "suspendre" : "réactiver";
     
-    if (window.confirm(`Voulez-vous vraiment ${actionText} le compte de ${emp.prenom} ${emp.nom} ?`)) {
+    if (window.confirm(`Voulez-vous vraiment ${actionText} l'accès de ${emp.prenom} ${emp.nom} ?`)) {
       try {
         const nouveauStatut = emp.statut === "Actif" ? "Suspendu" : "Actif";
         
-        // On met à jour le statut de l'employé
-        await api.put(`/personnel/${emp.id}`, { ...emp, statut: nouveauStatut });
+        // 1. On coupe/active l'utilisateur dans la table de sécurité via la nouvelle route PATCH
+        await api.patch(`/utilisateurs/${emp.utilisateur_id}/statut`, { est_actif: nouveauStatut === "Actif" });
         
-        // Si le backend nécessite aussi de couper l'utilisateur lié :
-        if (emp.utilisateur_id) {
-            await api.put(`/utilisateurs/${emp.utilisateur_id}`, { est_actif: nouveauStatut === "Actif" }).catch(() => console.log("Mise à jour utilisateur non requise ou gérée par le backend"));
-        }
+        // 2. On met à jour l'affichage de l'employé
+        await api.put(`/personnel/${emp.id}`, { ...emp, statut: nouveauStatut });
 
         fetchEmployes();
+        alert(`✅ Compte ${nouveauStatut} avec succès.`);
       } catch (error) {
         console.error("Erreur lors de la modification du statut", error);
         alert("❌ Impossible de modifier le statut.");
@@ -104,45 +106,57 @@ export default function Personnel() {
     }
   };
 
+  // --- NOUVEAU : RÉINITIALISER LE MOT DE PASSE ---
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentEmploye.utilisateur_id || !password) return;
+
+    try {
+      // On utilise notre nouvelle route backend spécifique
+      await api.patch(`/utilisateurs/${currentEmploye.utilisateur_id}/reset-password`, { 
+        nouveau_mot_de_passe: password 
+      });
+      
+      alert(`✅ MOT DE PASSE RÉINITIALISÉ !\n\nNouveau mot de passe de ${currentEmploye.prenom} : ${password}`);
+      setIsResetModalOpen(false);
+      setPassword("");
+    } catch (error) {
+      console.error("Erreur lors de la réinitialisation", error);
+      alert("❌ Impossible de réinitialiser le mot de passe.");
+    }
+  };
+
   // --- CRÉATION DU COMPTE UTILISATEUR ---
   const handleCreateAccess = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentEmploye.email || !password) {
-      alert("L'email et le mot de passe sont obligatoires.");
-      return;
-    }
+    if (!currentEmploye.email || !password) return alert("L'email et le mot de passe sont obligatoires.");
 
     try {
-      // 1. On crée l'utilisateur dans le système de sécurité
       const userPayload = {
         email: currentEmploye.email,
         nom: currentEmploye.nom,
         prenom: currentEmploye.prenom,
         mot_de_passe: password,
-        role: currentEmploye.fonction // Le rôle correspond à sa fonction
+        role: currentEmploye.fonction
       };
       
       const userRes = await api.post("/utilisateurs/", userPayload);
       
-      // 2. On lie ce nouvel utilisateur à la fiche employé
       await api.put(`/personnel/${currentEmploye.id}`, {
         ...currentEmploye,
         utilisateur_id: userRes.data.id
       });
 
-      // 💡 L'ASTUCE EST ICI : Afficher les identifiants en clair à la création
-      alert(`✅ COMPTE CRÉÉ AVEC SUCCÈS !\n\nVoici les identifiants à transmettre à ${currentEmploye.prenom} :\n📧 Email : ${currentEmploye.email}\n🔑 Mot de passe : ${password}\n\n(⚠️ Notez ce mot de passe, il ne sera plus jamais visible pour des raisons de sécurité !)`);
+      alert(`✅ COMPTE CRÉÉ AVEC SUCCÈS !\n\nVoici les identifiants à transmettre à ${currentEmploye.prenom} :\n📧 Email : ${currentEmploye.email}\n🔑 Mot de passe : ${password}`);
       
       setIsAccessModalOpen(false);
       setPassword("");
       fetchEmployes();
     } catch (error: any) {
-      console.error("Erreur lors de la création de l'accès", error);
-      alert("❌ Erreur : " + (error.response?.data?.detail || "Impossible de créer le compte. L'email est peut-être déjà utilisé."));
+      alert("❌ Erreur : Impossible de créer le compte. L'email est peut-être déjà utilisé.");
     }
   };
 
-  // Les fonctions autorisées à avoir un accès numérique
   const fonctionsElegibles = ["Directeur", "Secrétaire", "Enseignant"];
 
   const employesFiltres = employes.filter(emp => 
@@ -175,7 +189,6 @@ export default function Personnel() {
         </button>
       </div>
 
-      {/* BARRE DE RECHERCHE */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center">
         <Search className="text-gray-400 mr-3" size={20} />
         <input 
@@ -187,10 +200,10 @@ export default function Personnel() {
         />
       </div>
 
-      {/* TABLEAU RESPONSIVE (SCROLL HORIZONTAL SUR MOBILE) */}
+      {/* TABLEAU */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[800px]">
+          <table className="w-full text-left border-collapse min-w-[900px]">
             <thead>
               <tr className="bg-gray-50 text-gray-500 text-sm border-b">
                 <th className="p-4 font-medium">Nom & Prénom</th>
@@ -207,7 +220,6 @@ export default function Personnel() {
                 <tr><td colSpan={5} className="p-8 text-center text-gray-500">Aucun employé trouvé.</td></tr>
               ) : (
                 employesFiltres.map((emp) => (
-                  // Ligne rouge pâle si l'employé est suspendu
                   <tr key={emp.id} className={`border-b transition ${emp.statut === 'Suspendu' ? 'bg-red-50/40' : 'hover:bg-gray-50'}`}>
                     <td className="p-4 font-bold text-gray-800">{emp.nom} {emp.prenom}</td>
                     <td className="p-4 text-gray-600">
@@ -217,7 +229,6 @@ export default function Personnel() {
                     </td>
                     <td className="p-4 text-gray-600">{emp.telephone}</td>
                     
-                    {/* GESTION DES ACCÈS ET STATUT */}
                     <td className="p-4 text-center">
                       {emp.statut === "Suspendu" ? (
                          <span className="inline-flex items-center text-red-600 text-sm font-bold bg-red-50 px-3 py-1 rounded-full border border-red-200">
@@ -241,18 +252,29 @@ export default function Personnel() {
                       )}
                     </td>
 
-                    {/* ACTIONS */}
-                    <td className="p-4 flex justify-end space-x-2">
+                    <td className="p-4 flex justify-end space-x-1 md:space-x-2">
                       <button onClick={() => { setCurrentEmploye(emp); setModalMode("view"); setIsModalOpen(true); }} className="p-2 text-gray-400 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 rounded-lg" title="Voir la fiche"><Eye size={18} /></button>
                       
-                      {/* BOUTON POWER (Désactiver / Activer) */}
-                      <button 
-                        onClick={() => handleToggleStatus(emp)} 
-                        className={`p-2 rounded-lg transition-colors bg-gray-50 ${emp.statut === 'Actif' ? 'text-orange-500 hover:bg-orange-100' : 'text-green-600 hover:bg-green-100'}`} 
-                        title={emp.statut === 'Actif' ? "Suspendre l'employé" : "Réactiver l'employé"}
-                      >
-                        <Power size={18} />
-                      </button>
+                      {/* GESTION COMPTE (Si l'employé a un utilisateur) */}
+                      {emp.utilisateur_id && (
+                        <>
+                          <button 
+                            onClick={() => { setCurrentEmploye(emp); setPassword(""); setIsResetModalOpen(true); }}
+                            className="p-2 text-gray-400 hover:text-purple-600 bg-gray-50 hover:bg-purple-50 rounded-lg transition-colors" 
+                            title="Réinitialiser le mot de passe"
+                          >
+                            <RefreshCw size={18} />
+                          </button>
+
+                          <button 
+                            onClick={() => handleToggleStatus(emp)} 
+                            className={`p-2 rounded-lg transition-colors bg-gray-50 ${emp.statut === 'Actif' ? 'text-orange-500 hover:bg-orange-100' : 'text-green-600 hover:bg-green-100'}`} 
+                            title={emp.statut === 'Actif' ? "Suspendre l'accès" : "Réactiver l'accès"}
+                          >
+                            <Power size={18} />
+                          </button>
+                        </>
+                      )}
 
                       <button onClick={() => { setCurrentEmploye(emp); setModalMode("edit"); setIsModalOpen(true); }} className="p-2 text-gray-400 hover:text-yellow-600 bg-gray-50 hover:bg-yellow-50 rounded-lg" title="Modifier"><Edit size={18} /></button>
                       <button onClick={() => handleDelete(emp.id!)} className="p-2 text-gray-400 hover:text-red-600 bg-gray-50 hover:bg-red-50 rounded-lg" title="Supprimer"><Trash2 size={18} /></button>
@@ -265,7 +287,7 @@ export default function Personnel() {
         </div>
       </div>
 
-      {/* --- MODALE : AJOUT / MODIFICATION EMPLOYÉ --- */}
+      {/* MODALE AJOUT/MODIF (Identique à avant) */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50 p-4">
           <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -310,7 +332,7 @@ export default function Personnel() {
         </div>
       )}
 
-      {/* --- MODALE : CRÉER UN ACCÈS LOGICIEL --- */}
+      {/* MODALE : CRÉER UN ACCÈS LOGICIEL */}
       {isAccessModalOpen && (
         <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50 p-4">
           <div className="bg-white rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
@@ -322,24 +344,42 @@ export default function Personnel() {
             </div>
             <form onSubmit={handleCreateAccess} className="p-6 space-y-4">
               <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-100 text-sm text-yellow-800 mb-4">
-                Vous êtes sur le point de créer un accès <b>{currentEmploye.fonction}</b> pour <b>{currentEmploye.prenom} {currentEmploye.nom}</b>.
+                Vous créez un accès pour <b>{currentEmploye.prenom} {currentEmploye.nom}</b>.
               </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email de connexion</label>
-                <input type="email" required value={currentEmploye.email} onChange={(e) => setCurrentEmploye({...currentEmploye, email: e.target.value})} className="w-full border p-2 rounded-md bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500" placeholder="ex: jean.dupont@ecole.com"/>
-                <p className="text-xs text-gray-400 mt-1">Sera utilisé comme identifiant de connexion.</p>
-              </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Mot de passe provisoire</label>
                 <input type="text" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full border p-2 rounded-md bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500" placeholder="ex: prof1234"/>
-                <p className="text-xs text-gray-400 mt-1">À communiquer à l'employé.</p>
               </div>
-
               <div className="flex justify-end gap-3 pt-4 border-t mt-4">
                  <button type="button" onClick={() => setIsAccessModalOpen(false)} className="px-4 py-2 border text-gray-600 rounded-lg hover:bg-gray-50">Annuler</button>
                  <button type="submit" className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700">Créer le compte</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODALE : RÉINITIALISER MOT DE PASSE */}
+      {isResetModalOpen && (
+        <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
+             <div className="p-5 border-b bg-purple-50 flex justify-between items-center">
+              <h2 className="text-lg font-bold text-purple-800 flex items-center">
+                <RefreshCw className="mr-2" size={20}/> Réinitialiser le mot de passe
+              </h2>
+              <button onClick={() => setIsResetModalOpen(false)} className="text-purple-500 hover:text-purple-700 font-bold text-xl">✕</button>
+            </div>
+            <form onSubmit={handleResetPassword} className="p-6 space-y-4">
+              <div className="bg-purple-50 p-3 rounded-lg border border-purple-100 text-sm text-purple-800 mb-4">
+                Définissez un nouveau mot de passe pour <b>{currentEmploye.prenom} {currentEmploye.nom}</b>.
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nouveau mot de passe</label>
+                <input type="text" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full border p-2 rounded-md bg-gray-50 outline-none focus:ring-2 focus:ring-purple-500" placeholder="ex: Nouveau123!"/>
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t mt-4">
+                 <button type="button" onClick={() => setIsResetModalOpen(false)} className="px-4 py-2 border text-gray-600 rounded-lg hover:bg-gray-50">Annuler</button>
+                 <button type="submit" className="px-6 py-2 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700">Confirmer</button>
               </div>
             </form>
           </div>
