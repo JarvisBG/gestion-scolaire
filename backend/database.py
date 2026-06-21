@@ -5,10 +5,9 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 
 # 1. On récupère l'URL depuis le serveur Cloud (ex: Render, Neon)
 # Si elle n'existe pas (quand tu codes sur ton PC), on utilise ta base locale par défaut
-SQLALCHEMY_DATABASE_URL = os.getenv(
-    "DATABASE_URL", 
-    "postgresql://postgres:Password@127.0.0.1:5432/gestion_scolaire"
-)
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:Password@127.0.0.1:5432/gestion_scolaire")
+
+#SQLALCHEMY_DATABASE_URL = "postgresql://neondb_owner:npg_Zw5MedK1ItuW@ep-orange-mode-asjimaqc.c-4.eu-central-1.aws.neon.tech/neondb?sslmode=require"
 
 # 2. Petite sécurité : SQLAlchemy exige "postgresql://" et non "postgres://"
 # Certains hébergeurs cloud donnent des URL commençant par "postgres://"
